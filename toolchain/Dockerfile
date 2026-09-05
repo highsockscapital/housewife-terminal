@@ -15,6 +15,9 @@
 # - glibc is configured with --prefix=<PREFIX>/glibc so the loader reports
 #   the on-device path; scripts/patch-elf.sh then rewrites INTERP/RPATH for
 #   third-party aarch64-linux-gnu binaries pulled from distro mirrors.
+# - Android 15+ (API 35) requires 16 KB ELF segment alignment: LDFLAGS below
+#   forces max-page-size=16384 for every glibc link step (the host patchelf
+#   build is exempt — it runs on the build host, not the device).
 # - Android sandbox/DNS: see toolchain/patches/*.patch (getprop DNS fallback,
 #   /proc/self/exe prefix detection). Apply before building glibc.
 
@@ -38,7 +41,10 @@ RUN curl -fsSLO "https://ftp.gnu.org/gnu/glibc/glibc-${GLIBC_VERSION}.tar.xz" \
     && tar -xf "glibc-${GLIBC_VERSION}.tar.xz"
 
 WORKDIR /build/glibc
-RUN case "$ARCH" in \
+# Explicit 16 KB linker flags for every glibc configure probe and link step
+# (Android 15+ refuses LOAD segments aligned wider than the kernel page size).
+RUN export LDFLAGS="-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384" \
+    && case "$ARCH" in \
       aarch64) TARGET="aarch64-linux-gnu" ;; \
       x86_64)  TARGET="x86_64-linux-gnu" ;; \
       *) echo "unsupported ARCH=$ARCH (want aarch64|x86_64)" >&2; exit 1 ;; \

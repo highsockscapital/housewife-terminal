@@ -274,3 +274,21 @@ afterEvaluate {
         variant.javaCompileProvider.get().dependsOn(downloadBootstraps)
     }
 }
+
+// glibc fork Phase 6: pre-build check for the APK-embedded GNU userland.
+// Warns (does not fail) when app/src/main/assets/glibc-bootstrap-<arch>.tar.xz
+// is missing so dev builds without toolchain/build-bootstrap.sh still compile;
+// first launch then falls back to the Bionic prefix (see isMissingGlibcAssetError).
+task checkGlibcBootstrapAssets() {
+    doLast {
+        if (project.ext.packageVariant == "glibc-android-15") {
+            ["arm64", "x86_64"].each { arch ->
+                def asset = new File(projectDir, "src/main/assets/glibc-bootstrap-" + arch + ".tar.xz")
+                if (!asset.isFile()) {
+                    logger.warn("Missing glibc bootstrap asset: " + asset + ". Build it with toolchain/build-bootstrap.sh; first launch will fall back to the Bionic prefix.")
+                }
+            }
+        }
+    }
+}
+downloadBootstraps.dependsOn(checkGlibcBootstrapAssets)
