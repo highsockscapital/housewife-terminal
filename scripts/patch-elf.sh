@@ -10,11 +10,15 @@
 #
 # Applied to every third-party aarch64-linux-gnu binary before it enters
 # glibc-bootstrap-<arch>.tar.xz:
-#   INTERP (--set-interpreter):
+#   INTERP (--set-interpreter, executables only):
 #     $PREFIX/glibc/lib/ld-linux-aarch64.so.1   (aarch64)
 #     $PREFIX/glibc/lib/ld-linux-x86-64.so.2    (x86_64)
-#   RPATH (--set-rpath):
+#   RPATH (--set-rpath, executables and shared libraries):
 #     $PREFIX/glibc/lib:$PREFIX/glibc/lib/<triplet>
+#
+# Shared libraries carry no .interp section, so --set-interpreter is not
+# applicable to them: INTERP failure falls through to the RPATH rewrite
+# instead of aborting the file.
 #
 # Requires: patchelf (built by toolchain/Dockerfile -> /out/patchelf).
 set -eu
@@ -87,7 +91,13 @@ for f in $FILES; do
     echo "patch-elf.sh: $f"
     echo "  INTERP -> $INTERP"
     echo "  RPATH  -> $RPATH"
-    "$PATCHELF" --set-interpreter "$INTERP" "$f" || { echo "  INTERP failed for $f" >&2; fail=1; continue; }
+    # Shared libraries have no .interp section: INTERP is not applicable, so
+    # fall through to the RPATH rewrite instead of skipping the file.
+    if "$PATCHELF" --set-interpreter "$INTERP" "$f" 2>/dev/null; then
+        :
+    else
+        echo "  INTERP not applicable for $f (shared library?), RPATH only"
+    fi
     "$PATCHELF" --set-rpath "$RPATH" "$f" || { echo "  RPATH failed for $f" >&2; fail=1; continue; }
     # 16 KB page-size guard: flag binaries whose segments exceed the limit.
     if command -v readelf >/dev/null 2>&1; then

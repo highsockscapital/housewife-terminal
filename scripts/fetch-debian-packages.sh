@@ -12,7 +12,7 @@
 #       [--packages-file FILE] [--out DIR] [--cache-dir DIR]
 #
 # Defaults:
-#   --arch arm64 --mirror https://deb.debian.org/debian --suite stable
+#   --arch arm64 --mirror https://deb.debian.org/debian --suite bookworm
 #   --components main --packages-file toolchain/debian-packages.txt
 #   --out build/glibc-staging/arm64/glibc --cache-dir build/deb-cache/arm64
 #
@@ -31,7 +31,7 @@ set -eu
 
 ARCH="arm64"
 MIRROR="https://deb.debian.org/debian"
-SUITE="stable"
+SUITE="bookworm"
 COMPONENTS="main"
 TRIPLET=""
 PACKAGES_FILE="toolchain/debian-packages.txt"
