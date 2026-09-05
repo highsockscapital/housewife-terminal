@@ -66,11 +66,9 @@ android {
         manifestPlaceholders.TERMUX_TASKER_APP_NAME = "Termux:Tasker"
         manifestPlaceholders.TERMUX_WIDGET_APP_NAME = "Termux:Widget"
 
-        ndk {
-            // Housewife: ARM64 phones only. Single ABI keeps CI fast and the
-            // release page to one APK (32-bit ABIs and x86_64 purged).
-            abiFilters "arm64-v8a"
-        }
+        // NOTE: no `ndk { abiFilters }` block: with a single-ABI matrix AGP
+        // rejects an ABI present in both abiFilters and splits. The splits
+        // `include` below is the single source of truth (arm64-v8a).
 
         externalNativeBuild {
             ndkBuild {
