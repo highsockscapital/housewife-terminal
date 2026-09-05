@@ -7,7 +7,7 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.housewife.terminal.am.Am;
+import com.termux.am.Am;
 import com.housewife.terminal.shared.R;
 import com.housewife.terminal.shared.android.PackageUtils;
 import com.housewife.terminal.shared.android.PermissionUtils;
