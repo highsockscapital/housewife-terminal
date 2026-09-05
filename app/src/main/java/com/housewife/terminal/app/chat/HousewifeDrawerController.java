@@ -68,9 +68,18 @@ public final class HousewifeDrawerController {
         sessionList.setAdapter(sessionAdapter);
 
         fileTree.setLayoutManager(new LinearLayoutManager(fileTree.getContext()));
-        fileAdapter = new FileExplorerAdapter(fileTreeRoot, file -> {
-            chatInput.append(file.getAbsolutePath() + " ");
-            chatInput.requestFocus();
+        fileAdapter = new FileExplorerAdapter(fileTreeRoot, new FileExplorerAdapter.FileActions() {
+            @Override
+            public void onFileTapped(@NonNull File file) {
+                chatInput.append(file.getAbsolutePath() + " ");
+                chatInput.requestFocus();
+            }
+
+            @Override
+            public void onEditMarkdownInShell(@NonNull File file) {
+                chatInput.append("nano " + file.getAbsolutePath());
+                chatInput.requestFocus();
+            }
         });
         fileTree.setAdapter(fileAdapter);
 

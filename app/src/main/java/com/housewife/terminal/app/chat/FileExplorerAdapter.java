@@ -44,6 +44,9 @@ public final class FileExplorerAdapter extends RecyclerView.Adapter<FileExplorer
 
     public interface FileActions {
         void onFileTapped(@NonNull File file);
+
+        /** "Edit in Shell" from the markdown preview sheet. */
+        void onEditMarkdownInShell(@NonNull File file);
     }
 
     /** Visible row: file, tree depth (for indentation), expansion state. */
@@ -90,8 +93,13 @@ public final class FileExplorerAdapter extends RecyclerView.Adapter<FileExplorer
         setRoot(root);
     }
 
-    private static File[] listChildren(@NonNull File dir) {
-        File[] children = dir.listFiles();
+    /** Markdown sources render in the preview sheet instead of the input bar. */
+    static boolean isMarkdownFile(@NonNull File file) {
+        String name = file.getName().toLowerCase(java.util.Locale.ROOT);
+        return name.endsWith(".md") || name.endsWith(".markdown");
+    }
+
+    private static File[] listChildren(@NonNull File dir) {        File[] children = dir.listFiles();
         if (children == null) return new File[0];
         Arrays.sort(children, DIRS_FIRST);
         return children;
@@ -128,10 +136,14 @@ public final class FileExplorerAdapter extends RecyclerView.Adapter<FileExplorer
             int adapterPosition = holder.getBindingAdapterPosition();
             if (adapterPosition == RecyclerView.NO_POSITION) return;
             FileNode tapped = visible.get(adapterPosition);
-            if (tapped.file.isDirectory())
+            if (tapped.file.isDirectory()) {
                 toggleDirectory(adapterPosition);
-            else
+            } else if (isMarkdownFile(tapped.file)) {
+                MarkdownPreviewController.showPreview(context, tapped.file,
+                    file -> actions.onEditMarkdownInShell(file));
+            } else {
                 actions.onFileTapped(tapped.file);
+            }
         });
         holder.itemView.setOnLongClickListener(v -> {
             int adapterPosition = holder.getBindingAdapterPosition();
