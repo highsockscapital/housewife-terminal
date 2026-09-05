@@ -67,8 +67,9 @@ android {
         manifestPlaceholders.TERMUX_WIDGET_APP_NAME = "Termux:Widget"
 
         ndk {
-            // glibc fork: 64-bit only. Purge 32-bit ABIs (armeabi-v7a, x86).
-            abiFilters "arm64-v8a", "x86_64"
+            // Housewife: ARM64 phones only. Single ABI keeps CI fast and the
+            // release page to one APK (32-bit ABIs and x86_64 purged).
+            abiFilters "arm64-v8a"
         }
 
         externalNativeBuild {
@@ -91,8 +92,8 @@ android {
                 enable ((gradle.startParameter.taskNames.any { it.contains("Debug") } && splitAPKsForDebugBuilds == "1") ||
                     (gradle.startParameter.taskNames.any { it.contains("Release") } && splitAPKsForReleaseBuilds == "1"))
                 reset ()
-                include 'x86_64', 'arm64-v8a'
-                universalApk true
+                include 'arm64-v8a'
+                universalApk false
             }
         }
     }
@@ -287,7 +288,8 @@ afterEvaluate {
 task checkGlibcBootstrapAssets() {
     doLast {
         if (project.ext.packageVariant == "glibc-android-15") {
-            ["arm64", "x86_64"].each { arch ->
+            // ARM64-only matrix: the x86_64 glibc asset is not built or checked.
+            ["arm64"].each { arch ->
                 def asset = new File(projectDir, "src/main/assets/glibc-bootstrap-" + arch + ".tar.xz")
                 if (!asset.isFile()) {
                     logger.warn("Missing glibc bootstrap asset: " + asset + ". Build it with toolchain/build-bootstrap.sh; first launch will fall back to the Bionic prefix.")

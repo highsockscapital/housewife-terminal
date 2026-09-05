@@ -24,7 +24,6 @@ jobs:
       # glibc userland ships separately in app/src/main/assets/.
       BIONIC_BOOTSTRAP_VERSION: '2026.02.12-r1%2Bapt.android-7'
       BIONIC_BOOTSTRAP_AARCH64_SHA256: 'ea2aeba8819e517db711f8c32369e89e7c52cee73e07930ff91185e1ab93f4f3'
-      BIONIC_BOOTSTRAP_X86_64_SHA256: 'b7fd0f2e3a4de534be3144f9f91acc768630fc463eaf134ab2e64c545e834f7a'
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -50,7 +49,7 @@ jobs:
         run: |
           APK_DIR_PATH="./app/build/outputs/apk/debug"
           ls -la "$APK_DIR_PATH"
-          for abi in universal arm64-v8a x86_64; do
+          for abi in arm64-v8a; do
             if ! ls "$APK_DIR_PATH"/termux-app_*_"$abi".apk >/dev/null 2>&1; then
               echo "Missing $abi APK in $APK_DIR_PATH"
               exit 1

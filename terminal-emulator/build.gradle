@@ -18,7 +18,8 @@ android {
         }
 
         ndk {
-            abiFilters 'x86', 'x86_64', 'armeabi-v7a', 'arm64-v8a'
+            // Housewife: ARM64 phones only (upstream 4-ABI matrix pruned).
+            abiFilters 'arm64-v8a'
         }
     }
 
