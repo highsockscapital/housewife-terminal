@@ -1,9 +1,14 @@
 name: Attach Debug APKs To Release
 
-on:
-  release:
-    types:
-      - published
+# DISABLED for the Housewife fork: this legacy Termux workflow builds the
+# apt-android variants with `hub` (not installed on modern runners) and
+# DELETES the release + tag on any failure, which would destroy Housewife
+# releases. Housewife APKs ship via `housewife-build.yml` artifacts and are
+# attached to releases manually. Kept for reference only.
+# on:
+#   release:
+#     types:
+#       - published
 
 jobs:
   attach-apks:

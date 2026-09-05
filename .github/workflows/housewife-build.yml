@@ -1,0 +1,59 @@
+name: Housewife Build
+
+# Builds the Housewife Terminal (glibc-android-15) debug APKs for the main
+# branch. This is the fork's build; the legacy Termux `Build` workflow only
+# targets master + apt variants.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      package_variant:
+        description: 'Package variant'
+        required: false
+        default: 'glibc-android-15'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      TERMUX_PACKAGE_VARIANT: ${{ inputs.package_variant || 'glibc-android-15' }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+
+      - name: Setup java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android NDK
+        run: |
+          NDK_VERSION="$(grep -m1 '^ndkVersion=' gradle.properties | cut -d= -f2)"
+          echo "Installing NDK $NDK_VERSION"
+          sdkmanager "ndk;$NDK_VERSION"
+
+      - name: Build debug APKs
+        run: ./gradlew assembleDebug
+
+      - name: Validate APKs
+        run: |
+          APK_DIR_PATH="./app/build/outputs/apk/debug"
+          ls -la "$APK_DIR_PATH"
+          for abi in universal arm64-v8a x86_64; do
+            if ! ls "$APK_DIR_PATH"/termux-app_*_"$abi".apk >/dev/null 2>&1; then
+              echo "Missing $abi APK in $APK_DIR_PATH"
+              exit 1
+            fi
+          done
+          (cd "$APK_DIR_PATH" && sha256sum termux-app_*.apk > sha256sums.txt)
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v6
+        with:
+          name: housewife-apks-${{ env.TERMUX_PACKAGE_VARIANT }}
+          path: |
+            ./app/build/outputs/apk/debug/*.apk
+            ./app/build/outputs/apk/debug/sha256sums.txt
