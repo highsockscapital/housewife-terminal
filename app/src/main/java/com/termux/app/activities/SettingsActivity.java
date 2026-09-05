@@ -16,7 +16,6 @@ import com.termux.shared.models.ReportInfo;
 import com.termux.app.models.UserAction;
 import com.termux.shared.interact.ShareUtils;
 import com.termux.shared.android.PackageUtils;
-import com.termux.shared.termux.settings.preferences.TermuxAPIAppSharedPreferences;
 import com.termux.shared.termux.settings.preferences.TermuxFloatAppSharedPreferences;
 import com.termux.shared.termux.settings.preferences.TermuxTaskerAppSharedPreferences;
 import com.termux.shared.termux.settings.preferences.TermuxWidgetAppSharedPreferences;
@@ -74,11 +73,10 @@ public class SettingsActivity extends AppCompatActivity {
         }
 
         private void configureTermuxAPIPreference(@NonNull Context context) {
+            // glibc fork: termux-api purged. Always hide the preference.
             Preference termuxAPIPreference = findPreference("termux_api");
             if (termuxAPIPreference != null) {
-                TermuxAPIAppSharedPreferences preferences = TermuxAPIAppSharedPreferences.build(context, false);
-                // If failed to get app preferences, then likely app is not installed, so do not show its preference
-                termuxAPIPreference.setVisible(preferences != null);
+                termuxAPIPreference.setVisible(false);
             }
         }
 

@@ -8,8 +8,9 @@ ext {
     // crash at startup.
     // Bootstrap of a different variant must not be manually installed by the user after app installation
     // by replacing $PREFIX since app code is dependant on the variant used to build the APK.
-    // Currently supported values are: [ "apt-android-7" "apt-android-5" ]
-    packageVariant = System.getenv("TERMUX_PACKAGE_VARIANT") ?: "apt-android-7" // Default: "apt-android-7"
+    // Currently supported values are: [ "glibc-android-15" "apt-android-7" "apt-android-5" ]
+    // glibc fork default: minimal Bionic bootstrap + isolated $PREFIX/glibc runtime.
+    packageVariant = System.getenv("TERMUX_PACKAGE_VARIANT") ?: "glibc-android-15" // Default: "glibc-android-15"
 }
 
 android {
@@ -60,9 +61,20 @@ android {
         manifestPlaceholders.TERMUX_TASKER_APP_NAME = "Termux:Tasker"
         manifestPlaceholders.TERMUX_WIDGET_APP_NAME = "Termux:Widget"
 
+        ndk {
+            // glibc fork: 64-bit only. Purge 32-bit ABIs (armeabi-v7a, x86).
+            abiFilters "arm64-v8a", "x86_64"
+        }
+
         externalNativeBuild {
             ndkBuild {
-                cFlags "-std=c11", "-Wall", "-Wextra", "-Werror", "-Os", "-fno-stack-protector", "-Wl,--gc-sections"
+                // -std=c11 etc. are compiler flags. The -Wl,-z flags are passed
+                // through the compiler driver to the linker to enforce 16 KB
+                // page-size alignment required by Android 15+ (API 35) kernels.
+                cFlags "-std=c11", "-Wall", "-Wextra", "-Werror", "-Os", "-fno-stack-protector",
+                    "-Wl,--gc-sections",
+                    "-Wl,-z,max-page-size=16384", "-Wl,-z,common-page-size=16384"
+                arguments "APP_ABI=arm64-v8a x86_64"
             }
         }
 
@@ -71,7 +83,7 @@ android {
                 enable ((gradle.startParameter.taskNames.any { it.contains("Debug") } && splitAPKsForDebugBuilds == "1") ||
                     (gradle.startParameter.taskNames.any { it.contains("Release") } && splitAPKsForReleaseBuilds == "1"))
                 reset ()
-                include 'x86', 'x86_64', 'armeabi-v7a', 'arm64-v8a'
+                include 'x86_64', 'arm64-v8a'
                 universalApk true
             }
         }
@@ -218,7 +230,25 @@ clean {
 task downloadBootstraps() {
     doLast {
         def packageVariant = project.ext.packageVariant
-        if (packageVariant == "apt-android-7") {
+        if (packageVariant == "glibc-android-15") {
+            // glibc fork: 64-bit only. The Bionic bootstrap is intentionally tiny
+            // (bash, patchelf, grun); the real userland lives in $PREFIX/glibc and
+            // is shipped via app/src/main/assets/glibc-bootstrap-<arch>.tar.xz
+            // (see toolchain/ and scripts/build-glibc-bootstrap.sh).
+            // CI may provide BIONIC_BOOTSTRAP_VERSION + checksums via env; otherwise
+            // skip the download and let the Docker toolchain generate the zips.
+            def version = System.getenv("BIONIC_BOOTSTRAP_VERSION")
+            if (version != null) {
+                def aarch64Checksum = System.getenv("BIONIC_BOOTSTRAP_AARCH64_SHA256")
+                def x86_64Checksum = System.getenv("BIONIC_BOOTSTRAP_X86_64_SHA256")
+                if (aarch64Checksum != null)
+                    downloadBootstrap("aarch64", aarch64Checksum, version)
+                if (x86_64Checksum != null)
+                    downloadBootstrap("x86_64", x86_64Checksum, version)
+            } else {
+                logger.quiet("Skipping Bionic bootstrap download for glibc-android-15 (no BIONIC_BOOTSTRAP_VERSION set). Expect bootstrap zips from toolchain/ or assets/.")
+            }
+        } else if (packageVariant == "apt-android-7") {
             def version = "2026.02.12-r1" + "%2B" + "apt.android-7"
             downloadBootstrap("aarch64", "ea2aeba8819e517db711f8c32369e89e7c52cee73e07930ff91185e1ab93f4f3", version)
             downloadBootstrap("arm", "a38f4d3b2f735f83be2bf54eff463e86dc32a3e2f9f861c1557c4378d249c018", version)

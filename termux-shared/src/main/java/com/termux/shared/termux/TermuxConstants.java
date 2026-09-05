@@ -645,6 +645,26 @@ public final class TermuxConstants {
     public static final File TERMUX_VAR_PREFIX_DIR = new File(TERMUX_VAR_PREFIX_DIR_PATH);
 
 
+    /** glibc fork: isolated GNU runtime prefix ($PREFIX/glibc) directory path */
+    public static final String TERMUX_GLIBC_PREFIX_DIR_PATH = TERMUX_PREFIX_DIR_PATH + "/glibc"; // Default: "/data/data/com.termux/files/usr/glibc"
+    /** glibc fork: isolated GNU runtime prefix ($PREFIX/glibc) directory */
+    public static final File TERMUX_GLIBC_PREFIX_DIR = new File(TERMUX_GLIBC_PREFIX_DIR_PATH);
+
+    /** glibc fork: $PREFIX/glibc/bin directory path (primary userland binaries) */
+    public static final String TERMUX_GLIBC_BIN_PREFIX_DIR_PATH = TERMUX_GLIBC_PREFIX_DIR_PATH + "/bin";
+    /** glibc fork: $PREFIX/glibc/bin directory */
+    public static final File TERMUX_GLIBC_BIN_PREFIX_DIR = new File(TERMUX_GLIBC_BIN_PREFIX_DIR_PATH);
+
+    /** glibc fork: $PREFIX/glibc/lib directory path (libc.so.6, ld-linux) */
+    public static final String TERMUX_GLIBC_LIB_PREFIX_DIR_PATH = TERMUX_GLIBC_PREFIX_DIR_PATH + "/lib";
+
+    /** glibc fork: $PREFIX/bin/grun host runner binary path */
+    public static final String TERMUX_GRUN_BIN_PATH = TERMUX_BIN_PREFIX_DIR_PATH + "/grun";
+
+    /** glibc fork: GNU dynamic loader path inside $PREFIX/glibc (aarch64). x86_64 uses ld-linux-x86-64.so.2, resolved at runtime by grun. */
+    public static final String TERMUX_GLIBC_LD_LINUX_AARCH64_PATH = TERMUX_GLIBC_LIB_PREFIX_DIR_PATH + "/ld-linux-aarch64.so.1";
+
+
 
     /** Termux app usr-staging directory path */
     public static final String TERMUX_STAGING_PREFIX_DIR_PATH = TERMUX_FILES_DIR_PATH + "/usr-staging"; // Default: "/data/data/com.termux/files/usr-staging"

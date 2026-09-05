@@ -97,6 +97,12 @@ static int create_subprocess(JNIEnv* env,
 
         clearenv();
         if (envp) for (; *envp; ++envp) putenv(*envp);
+        /* glibc fork: envp is authoritative and comes from
+           TermuxShellEnvironment.getEnvironment(). For the glibc variant it
+           already puts $PREFIX/glibc/bin first in PATH, unsets LD_PRELOAD
+           (termux-exec is purged: it breaks ld-linux), and exports
+           GLIBC_PREFIX/GCONV_PATH/LD_LIBRARY_PATH for grun. Do NOT
+           reintroduce LD_PRELOAD or prepend Bionic paths here. */
 
         if (chdir(cwd) != 0) {
             char* error_message;

@@ -28,6 +28,12 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
     /** Environment variable for the termux {@link TermuxConstants#TERMUX_PREFIX_DIR_PATH}. */
     public static final String ENV_PREFIX = "PREFIX";
 
+    /** Environment variable for the glibc dynamic loader execution prefix. */
+    public static final String ENV_GLIBC_PREFIX = "GLIBC_PREFIX";
+
+    /** Environment variable for glibc gconv modules path. */
+    public static final String ENV_GCONV_PATH = "GCONV_PATH";
+
     public TermuxShellEnvironment() {
         super();
         shellCommandShellEnvironment = new TermuxShellCommandShellEnvironment();
@@ -71,9 +77,9 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         if (termuxAppEnvironment != null)
             environment.putAll(termuxAppEnvironment);
 
-        HashMap<String, String> termuxApiAppEnvironment = TermuxAPIShellEnvironment.getEnvironment(currentPackageContext);
-        if (termuxApiAppEnvironment != null)
-            environment.putAll(termuxApiAppEnvironment);
+        // glibc fork: termux-api shell environment bridge purged. The glibc
+        // runtime must not inherit API-app paths that could shadow
+        // $PREFIX/glibc binaries or reintroduce Bionic LD_PRELOAD hooks.
 
         environment.put(ENV_HOME, TermuxConstants.TERMUX_HOME_DIR_PATH);
         environment.put(ENV_PREFIX, TermuxConstants.TERMUX_PREFIX_DIR_PATH);
@@ -85,12 +91,34 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
                 // Termux in android 5/6 era shipped busybox binaries in applets directory
                 environment.put(ENV_PATH, TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + ":" + TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + "/applets");
                 environment.put(ENV_LD_LIBRARY_PATH, TermuxConstants.TERMUX_LIB_PREFIX_DIR_PATH);
+            } else if (TermuxBootstrap.isAppPackageVariantGlibcAndroid15()) {
+                // glibc fork (hybrid model): the Bionic host prefix stays minimal
+                // ($PREFIX/bin: bash, patchelf, grun) while the GNU userland lives
+                // in $PREFIX/glibc. glibc/bin comes FIRST so standard Linux
+                // binaries shadow the host stubs. Binaries rely on their ELF
+                // INTERP/RPATH (patched to $PREFIX/glibc), so LD_LIBRARY_PATH
+                // stays unset. LD_PRELOAD (termux-exec) must never leak through
+                // since it breaks ld-linux. GCONV_PATH points at the glibc
+                // gconv modules for iconv/gettext correctness.
+                // This is the PATH consumed by the JNI PTY bridge (termux.c
+                // create_subprocess -> execvp) for every default shell session.
+                environment.put(ENV_PATH, TermuxConstants.TERMUX_GLIBC_BIN_PREFIX_DIR_PATH
+                    + ":" + TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH);
+                environment.remove(ENV_LD_LIBRARY_PATH);
+                environment.remove("LD_PRELOAD");
+                environment.put(ENV_GLIBC_PREFIX, TermuxConstants.TERMUX_GLIBC_PREFIX_DIR_PATH);
+                environment.put(ENV_GCONV_PATH, TermuxConstants.TERMUX_GLIBC_LIB_PREFIX_DIR_PATH + "/gconv");
             } else {
                 // Termux binaries on Android 7+ rely on DT_RUNPATH, so LD_LIBRARY_PATH should be unset by default
                 environment.put(ENV_PATH, TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH);
                 environment.remove(ENV_LD_LIBRARY_PATH);
             }
         }
+
+        // termux-exec (LD_PRELOAD path rewriter) is purged in the glibc fork:
+        // never propagate a host LD_PRELOAD into the PTY child, it interferes
+        // with ld-linux-aarch64.so.1. grun enforces this again at exec time.
+        environment.remove("LD_PRELOAD");
 
         return environment;
     }

@@ -86,6 +86,11 @@ public class TermuxBootstrap {
         return PackageManager.APT.equals(TERMUX_APP_PACKAGE_MANAGER);
     }
 
+    /** Is {@link PackageManager#GLIBC} set as {@link #TERMUX_APP_PACKAGE_MANAGER}. */
+    public static boolean isAppPackageManagerGlibc() {
+        return PackageManager.GLIBC.equals(TERMUX_APP_PACKAGE_MANAGER);
+    }
+
     ///** Is {@link PackageManager#TAPM} set as {@link #TERMUX_APP_PACKAGE_MANAGER}. */
     //public static boolean isAppPackageManagerTAPM() {
     //    return PackageManager.TAPM.equals(TERMUX_APP_PACKAGE_MANAGER);
@@ -97,6 +102,11 @@ public class TermuxBootstrap {
     //}
 
 
+
+    /** Is {@link PackageVariant#GLIBC_ANDROID_15} set as {@link #TERMUX_APP_PACKAGE_VARIANT}. */
+    public static boolean isAppPackageVariantGlibcAndroid15() {
+        return PackageVariant.GLIBC_ANDROID_15.equals(TERMUX_APP_PACKAGE_VARIANT);
+    }
 
     /** Is {@link PackageVariant#APT_ANDROID_7} set as {@link #TERMUX_APP_PACKAGE_VARIANT}. */
     public static boolean isAppPackageVariantAPTAndroid7() {
@@ -128,7 +138,15 @@ public class TermuxBootstrap {
          * https://wiki.debian.org/Apt
          * https://wiki.debian.org/deb
          */
-        APT("apt");
+        APT("apt"),
+
+        /**
+         * glibc fork: minimal Bionic host prefix + isolated GNU userland in
+         * {@code $PREFIX/glibc} executed via {@code grun} (ld-linux).
+         * termux-exec (LD_PRELOAD path rewriting) is purged since it
+         * interferes with the glibc dynamic loader.
+         */
+        GLIBC("glibc");
 
         ///**
         // * Termux Android Package Manager (TAPM) for managing termux apk package files.
@@ -175,6 +193,9 @@ public class TermuxBootstrap {
 
     /** Termux package variant. The substring before first dash "-" must match one of the {@link PackageManager}. */
     public enum PackageVariant {
+
+        /** {@link PackageManager#GLIBC} variant for Android 15+ (API 35), 64-bit only. */
+        GLIBC_ANDROID_15("glibc-android-15"),
 
         /** {@link PackageManager#APT} variant for Android 7+. */
         APT_ANDROID_7("apt-android-7"),
