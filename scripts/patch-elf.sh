@@ -5,7 +5,7 @@
 #   scripts/patch-elf.sh <file...> [--prefix PREFIX] [--arch arm64|x86_64]
 #
 # Defaults:
-#   PREFIX=/data/data/com.termux/files/usr   (on-device $PREFIX)
+#   PREFIX=/data/data/com.housewife.terminal/files/usr   (on-device $PREFIX)
 #   ARCH  =auto (uname -m; x86_64 -> x86_64-linux-gnu triplet)
 #
 # Applied to every third-party aarch64-linux-gnu binary before it enters
@@ -23,7 +23,7 @@
 # Requires: patchelf (built by toolchain/Dockerfile -> /out/patchelf).
 set -eu
 
-PREFIX="/data/data/com.termux/files/usr"
+PREFIX="/data/data/com.housewife.terminal/files/usr"
 ARCH="auto"
 PATCHELF="${PATCHELF:-patchelf}"
 FILES=""

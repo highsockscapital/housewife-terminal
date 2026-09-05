@@ -52,7 +52,7 @@
 set -eu
 
 ARCH="arm64"
-PREFIX="/data/data/com.termux/files/usr"
+PREFIX="/data/data/com.housewife.terminal/files/usr"
 OUT="app/src/main/assets"
 GLIBC_TREE=""
 DEBIAN_STAGING=""

@@ -24,7 +24,7 @@
 FROM ubuntu:24.04 AS base
 ARG DEBIAN_FRONTEND=noninteractive
 ARG ARCH=aarch64
-ARG PREFIX=/data/data/com.termux/files/usr
+ARG PREFIX=/data/data/com.housewife.terminal/files/usr
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential gawk bison python3 texinfo gettext \

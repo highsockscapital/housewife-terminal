@@ -19,7 +19,7 @@
 #       [--glibc-version VER] [--skip-docker] [--skip-debian]
 #
 # Defaults:
-#   --arch arm64 --prefix /data/data/com.termux/files/usr --suite bookworm
+#   --arch arm64 --prefix /data/data/com.housewife.terminal/files/usr --suite bookworm
 #   --out-dir build/toolchain --image housewife-glibc-toolchain
 #   --glibc-version 2.40 (must match toolchain/Dockerfile GLIBC_VERSION)
 #
@@ -31,7 +31,7 @@ set -eu
 cd "$(dirname "$0")/.."
 
 ARCH="arm64"
-PREFIX="/data/data/com.termux/files/usr"
+PREFIX="/data/data/com.housewife.terminal/files/usr"
 SUITE="bookworm"
 OUT_DIR="build/toolchain"
 IMAGE="housewife-glibc-toolchain"
