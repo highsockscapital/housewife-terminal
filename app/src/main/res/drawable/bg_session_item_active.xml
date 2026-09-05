@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Flat 2D active session item: #FFE8CF fill, 1.5dp #161610 border, 8dp radius. No elevation. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/housewife_input_background" />
+    <stroke
+        android:width="1.5dp"
+        android:color="@color/housewife_stroke_border" />
+    <corners android:radius="8dp" />
+</shape>

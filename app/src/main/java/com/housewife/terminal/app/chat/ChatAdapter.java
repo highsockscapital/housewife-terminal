@@ -151,6 +151,28 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         if (autoScroll) scrollToBottom();
     }
 
+    /**
+     * Replace the whole terminal card text, e.g. restoring another session's
+     * transcript after {@code SessionManager.switchSession}. Main thread only.
+     */
+    public void replaceTerminalText(@NonNull CharSequence text) {
+        ensureTerminalCard();
+        synchronized (pending) {
+            pending.setLength(0);
+        }
+        terminalText.clear();
+        terminalText.append(text);
+        if (terminalText.length() > MAX_TERMINAL_CHARS)
+            terminalText.delete(0, terminalText.length() - MAX_TERMINAL_CHARS);
+        notifyItemChanged(terminalCardPosition);
+        if (autoScroll) scrollToBottom();
+    }
+
+    /** Request an immediate vsync flush (e.g. right after a session switch). */
+    public void requestFlush() {
+        mainHandler.post(scheduleRunnable);
+    }
+
     private void scrollToBottom() {
         if (getItemCount() == 0) return;
         recyclerView.scrollToPosition(getItemCount() - 1);
