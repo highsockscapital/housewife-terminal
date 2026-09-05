@@ -1,6 +1,7 @@
 package com.housewife.terminal.app.chat;
 
 import android.content.Context;
+import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -62,7 +63,7 @@ public final class MarkdownPreviewController {
             return;
         }
         Spanned rendered = MarkdownUtils.getSpannedMarkdownText(context, markdown);
-        if (rendered == null) rendered = Spanned.Factory.getInstance().newSpanned("");
+        if (rendered == null) rendered = new SpannableStringBuilder("");
 
         BottomSheetDialog dialog = new BottomSheetDialog(context);
         View sheet = LayoutInflater.from(context)
