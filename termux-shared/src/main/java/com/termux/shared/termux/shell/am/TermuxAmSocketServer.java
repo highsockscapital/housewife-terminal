@@ -16,7 +16,6 @@ import com.termux.shared.net.socket.local.LocalSocketRunConfig;
 import com.termux.shared.shell.am.AmSocketServerRunConfig;
 import com.termux.shared.shell.am.AmSocketServer;
 import com.termux.shared.termux.TermuxConstants;
-import com.termux.shared.termux.crash.TermuxCrashUtils;
 import com.termux.shared.termux.plugins.TermuxPluginUtils;
 import com.termux.shared.termux.settings.properties.TermuxAppSharedProperties;
 import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
@@ -193,8 +192,8 @@ public class TermuxAmSocketServer {
         @Override
         public Thread.UncaughtExceptionHandler getLocalSocketManagerClientThreadUEH(
             @NonNull LocalSocketManager localSocketManager) {
-            // Use termux crash handler for socket listener thread just like used for main app process thread.
-            return TermuxCrashUtils.getCrashHandler(localSocketManager.getContext());
+            // Housewife: crash handler pruned — use the default uncaught exception handler.
+            return null;
         }
 
         @Override

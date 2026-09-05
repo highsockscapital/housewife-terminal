@@ -52,13 +52,6 @@
 
 
 
-    <!-- ReportActivity -->
-    <string name="title_report_text">Report Text</string>
-    <string name="msg_report_truncated">**Report Truncated**\n\nReport is too large to view here.
-        Use `Save To File` option from options menu (3-dots on top right) and view it in an external text editor app.\n\n##\n\n</string>
-
-
-
     <!-- ShareUtils -->
     <string name="title_share_with">Share With</string>
     <string name="title_open_url_with">Open URL With</string>

@@ -15,7 +15,6 @@
     <permission
         android:name="${TERMUX_PACKAGE_NAME}.permission.RUN_COMMAND"
         android:description="@string/permission_run_command_description"
-        android:icon="@mipmap/ic_launcher"
         android:label="@string/permission_run_command_label"
         android:protectionLevel="dangerous" />
 
@@ -40,11 +39,8 @@
     <application
         android:name=".app.TermuxApplication"
         android:allowBackup="false"
-        android:banner="@drawable/banner"
-        android:icon="@mipmap/ic_launcher"
         android:label="@string/application_name"
         android:requestLegacyExternalStorage="true"
-        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="false"
         android:theme="@style/Theme.TermuxApp.DayNight.DarkActionBar"
         tools:targetApi="m">
@@ -102,14 +98,9 @@
             android:label="@string/title_activity_termux_settings"
             android:theme="@style/Theme.TermuxApp.DayNight.NoActionBar" />
 
-        <activity
-            android:name=".shared.activities.ReportActivity"
-            android:theme="@style/Theme.MarkdownViewActivity.DayNight"
-            android:documentLaunchMode="intoExisting" />
-
         <!-- glibc fork: termux-api file bridge (FileReceiverActivity + share/view
-             aliases) purged. The RUN_COMMAND service below is retained as the
-             minimal process-spawn bridge for the host engine. -->
+              aliases) purged. The RUN_COMMAND service below is retained as the
+              minimal process-spawn bridge for the host engine. -->
 
         <!-- glibc fork: SAF documents provider (TermuxDocumentsProvider) purged.
              The isolated $PREFIX/glibc runtime must not be exposed via SAF. -->
@@ -133,11 +124,6 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
-
-        <receiver
-            android:name=".shared.activities.ReportActivity$ReportActivityBroadcastReceiver"
-            android:exported="false" />
-
 
         <service
             android:name=".app.TermuxService"
