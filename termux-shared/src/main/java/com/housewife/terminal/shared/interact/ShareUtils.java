@@ -165,6 +165,16 @@ public class ShareUtils {
     public static void openUrl(final Context context, final String url) {
         if (context == null || url == null || url.isEmpty()) return;
         Uri uri = Uri.parse(url);
+        // Only http(s) links may be opened directly: terminal and chat content
+        // is untrusted remote output, and exotic schemes (intent:, tel:, ...)
+        // could otherwise reach arbitrary components with attacker extras.
+        String scheme = uri.getScheme();
+        if (scheme == null
+            || (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https"))) {
+            Logger.logError(LOG_TAG, "Refusing to open non-http(s) url with scheme \"" + scheme + "\"");
+            Logger.showToast(context, "Refusing to open non-http(s) link", true);
+            return;
+        }
         Intent intent = new Intent(Intent.ACTION_VIEW, uri);
         try {
             context.startActivity(intent);

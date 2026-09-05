@@ -35,6 +35,9 @@ public final class HelpActivity extends AppCompatActivity {
         mWebView = new WebView(this);
         WebSettings settings = mWebView.getSettings();
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        // Help pages are remote https only: no local file access needed.
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
         setContentView(progressLayout);
         mWebView.clearCache(true);
 
