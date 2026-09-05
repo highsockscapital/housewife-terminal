@@ -49,6 +49,13 @@ final class HousewifeInstaller {
     /** Version stamp file inside {@code $PREFIX/glibc}, written on every successful setup. */
     static final String BOOTSTRAP_VERSION_FILE_NAME = ".bootstrap_version";
 
+    /**
+     * dpkg speedup drop-in: skip fsync-heavy safe I/O during on-device package
+     * operations (flash-backed app sandbox; a failed op re-extracts cleanly).
+     */
+    static final String APT_SPEEDUP_FILE_NAME = "02apt-speedup";
+    static final String APT_SPEEDUP_CONTENT = "force-unsafe-io\n";
+
     /** Asset file for the current ABI. Build script names it {@code glibc-bootstrap-arm64.tar.xz}. */
     static String getAssetName() {
         String abi = Build.SUPPORTED_ABIS != null && Build.SUPPORTED_ABIS.length > 0
@@ -169,6 +176,16 @@ final class HousewifeInstaller {
             return new Error("Failed to chmod grun.", e);
         }
 
+        // APT/DPKG I/O speedup: fsync-heavy safe I/O is pointless on the
+        // flash-backed sandbox and slows every on-device install. Write the
+        // drop-in next to the 01patchelf hook (write-if-missing so pack-time
+        // or user-provided variants are never clobbered).
+        Error speedupError = ensureAptSpeedupConfig();
+        if (speedupError != null) {
+            cancelSysrootUpgradeNotification(context);
+            return speedupError;
+        }
+
         cancelSysrootUpgradeNotification(context);
         maybeShowPackageRestoreNotification(context);
 
@@ -210,8 +227,34 @@ final class HousewifeInstaller {
         }
     }
 
-    /** Dismiss the sysroot upgrade notification, if shown. Never fails the install. */
-    static void cancelSysrootUpgradeNotification(Context context) {
+    /**
+     * Write {@code $PREFIX/glibc/etc/dpkg/dpkg.cfg.d/02apt-speedup}
+     * ({@code force-unsafe-io}) when missing, so on-device dpkg skips
+     * fsync-heavy safe I/O. Returns {@code null} on success.
+     */
+    static Error ensureAptSpeedupConfig() {
+        try {
+            File config = new File(TermuxConstants.TERMUX_GLIBC_PREFIX_DIR_PATH
+                + "/etc/dpkg/dpkg.cfg.d/" + APT_SPEEDUP_FILE_NAME);
+            if (config.isFile()) return null;
+            Error error = FileUtils.createParentDirectoryFile("apt speedup config parent",
+                config.getAbsolutePath());
+            if (error != null) return error;
+            try (FileOutputStream out = new FileOutputStream(config)) {
+                out.write(APT_SPEEDUP_CONTENT.getBytes(StandardCharsets.UTF_8));
+            }
+            try {
+                Os.chmod(config.getAbsolutePath(), 0644);
+            } catch (Exception e) {
+                return new Error("Failed to chmod \"" + config.getAbsolutePath() + "\".", e);
+            }
+        } catch (Exception e) {
+            return new Error("Failed to write apt speedup config.", e);
+        }
+        return null;
+    }
+
+    /** Dismiss the sysroot upgrade notification, if shown. Never fails the install. */    static void cancelSysrootUpgradeNotification(Context context) {
         try {
             NotificationManager manager = NotificationUtils.getNotificationManager(context);
             if (manager != null)

@@ -71,7 +71,9 @@ RUN git clone --depth 1 https://github.com/NixOS/patchelf.git . \
 # grun host copy compiled against the NDK-style Bionic headers is produced by
 # the app ndk-build; this target validates the same source with the cross
 # compiler so bootstrap packaging never drifts from app/src/main/cpp/grun.c.
+# Phase 8.5 flags mirror app/src/main/cpp/Android.mk (glibc itself stays at
+# upstream -O2: LTO/-O3 are unsupported in its build).
 RUN TARGET="$(cat /build/target-triplet)" \
-    && "${TARGET}-gcc" -std=c11 -Wall -Wextra -Werror -Os \
-        -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 \
+    && "${TARGET}-gcc" -std=c11 -Wall -Wextra -Werror -O3 -flto -fomit-frame-pointer -funroll-loops \
+        -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 -Wl,-O1 -Wl,--gc-sections \
         /src/app-src-grun.c -o /out/grun || echo "mount app source at /src/app-src-grun.c to build grun"

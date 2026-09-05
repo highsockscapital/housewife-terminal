@@ -3,6 +3,7 @@ package com.housewife.terminal.app.chat;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.SpannableStringBuilder;
+import android.view.Choreographer;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,20 +25,25 @@ import java.util.List;
  *   <li>No {@link String} allocations on the hot path: callers pass a
  *       {@link CharSequence} chunk which is appended straight into a reused
  *       pending buffer under lock.</li>
- *   <li>Flushes are coalesced to one 16&nbsp;ms frame tick; the terminal card
- *       rebinds with a non-empty payload so the {@link TextView} (backed by a
- *       shared {@link SpannableStringBuilder}) is never fully rebound.</li>
+ *   <li>Flushes are coalesced to the display vsync via {@link Choreographer}
+ *       (60&nbsp;fps on 60&nbsp;Hz panels, up to 120&nbsp;fps on 120&nbsp;Hz),
+ *       so dense stdout bursts render at most once per frame; the terminal
+ *       card rebinds with a non-empty payload so the {@link TextView} (backed
+ *       by a shared {@link SpannableStringBuilder}) is never fully rebound.</li>
  *   <li>The shared builder is capped ({@link #MAX_TERMINAL_CHARS}); overflow
  *       trims the head so memory stays bounded on long executions.</li>
  *   <li>Hosts should call {@code recyclerView.setItemAnimator(null)} (done by
  *       {@link HousewifeChatController}) to skip change animations on streams.</li>
  * </ul>
+ *
+ * <p>Native note: the PTY reader already batches through an in-process byte
+ * queue ({@code ByteQueue}) and crosses JNI only for spawn/wait/close, so no
+ * extra native ring buffer sits on the hot path — throttling here at vsync is
+ * the entire frame budget story.
  */
 public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     private static final String PAYLOAD_APPEND = "append";
-    /** Flush PTY chunks at most once per display frame. */
-    private static final long FLUSH_INTERVAL_MS = 16L;
     /** Cap the live terminal card to ~200k chars. */
     private static final int MAX_TERMINAL_CHARS = 200 * 1024;
 
@@ -49,10 +55,13 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     /** Reused cross-thread staging buffer (guarded by its own monitor). */
     private final StringBuilder pending = new StringBuilder(8192);
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final Runnable flushRunnable = this::flushPending;
+    /** Hop from any thread onto the main thread to schedule a vsync flush. */
+    private final Runnable scheduleRunnable = this::scheduleFrame;
+    private final Choreographer.FrameCallback frameCallback = frameTimeNanos -> onFrame();
 
+    private Choreographer choreographer;
     private int terminalCardPosition = -1;
-    private boolean flushScheduled;
+    private boolean frameScheduled;
     private boolean autoScroll = true;
 
     public ChatAdapter(@NonNull RecyclerView recyclerView) {
@@ -98,17 +107,33 @@ public final class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         if (chunk.length() == 0) return;
         synchronized (pending) {
             pending.append(chunk);
-            if (!flushScheduled) {
-                flushScheduled = true;
-                mainHandler.postDelayed(flushRunnable, FLUSH_INTERVAL_MS);
-            }
+        }
+        // Choreographer must be touched on the main thread only.
+        mainHandler.post(scheduleRunnable);
+    }
+
+    /** Main thread: request at most one pending vsync flush. */
+    private void scheduleFrame() {
+        if (frameScheduled) return;
+        frameScheduled = true;
+        if (choreographer == null)
+            choreographer = Choreographer.getInstance();
+        choreographer.postFrameCallback(frameCallback);
+    }
+
+    /** Vsync tick: drain everything staged since the last frame, then re-arm. */
+    private void onFrame() {
+        frameScheduled = false;
+        flushPending();
+        synchronized (pending) {
+            if (pending.length() > 0)
+                scheduleFrame();
         }
     }
 
     private void flushPending() {
         final int cardPosition;
         synchronized (pending) {
-            flushScheduled = false;
             if (pending.length() == 0) return;
             if (terminalCardPosition < 0) {
                 // Must run on the main thread: posts the insert synchronously here.
