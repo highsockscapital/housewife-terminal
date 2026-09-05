@@ -38,13 +38,13 @@
 # Outputs (bundled in the APK, extracted on first start by GlibcBootstrapInstaller):
 #   app/src/main/assets/glibc-bootstrap-arm64.tar.xz   (also: -x86_64)
 #     ./glibc/...            GNU runtime (ld-linux, libc.so.6, gconv, binaries,
-#                            .bootstrap-version stamp, debian-manifest.txt)
+#                            .bootstrap_version stamp, debian-manifest.txt)
 #     ./bin/grun             Bionic host runner (cross-checked with grun.c)
 #
 # Versioning: --bootstrap-version (default: content of
-# toolchain/glibc-bootstrap.version) is stamped into glibc/.bootstrap-version
+# toolchain/glibc-bootstrap.version) is stamped into glibc/.bootstrap_version
 # and MUST equal TermuxConstants.TERMUX_GLIBC_BOOTSTRAP_VERSION, which the
-# installer compares against $PREFIX/glibc/.bootstrap-version. Bump both for a
+# installer compares against $PREFIX/glibc/.bootstrap_version. Bump both for a
 # new bootstrap release.
 #
 # The Bionic bootstrap zips (bootstrap-<arch>.zip in app/src/main/cpp/) stay
@@ -216,7 +216,7 @@ fi
 
 # Version stamp + manifest live inside the tarball; the installer compares the
 # stamp against TERMUX_GLIBC_BOOTSTRAP_VERSION for idempotent upgrades.
-printf '%s\n' "$BOOTSTRAP_VERSION" > "$STAGE/glibc/.bootstrap-version"
+printf '%s\n' "$BOOTSTRAP_VERSION" > "$STAGE/glibc/.bootstrap_version"
 if [ ! -f "$STAGE/glibc/debian-manifest.txt" ]; then
     printf '# no Debian payload staged (glibc-tree/overlay only)\n' > "$STAGE/glibc/debian-manifest.txt"
 fi

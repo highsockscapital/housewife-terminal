@@ -25,17 +25,25 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>Tarball layout (see {@code scripts/build-glibc-bootstrap.sh}):
  * {@code ./glibc/...} (ld-linux, libc.so.6, gconv, Debian userland binaries,
- * {@code .bootstrap-version}, {@code debian-manifest.txt}) and {@code ./bin/grun}.
+ * {@code .bootstrap_version}, {@code debian-manifest.txt}) and {@code ./bin/grun}.
  * Entries are extracted relative to {@code $PREFIX}, so {@code glibc/bin/bash}
  * lands at {@code $PREFIX/glibc/bin/bash}.</p>
  *
  * <p>Idempotent: {@link #isInstallNeeded()} compares
  * {@link TermuxConstants#TERMUX_GLIBC_BOOTSTRAP_VERSION} against
- * {@code $PREFIX/glibc/.bootstrap-version}. No-op for non-glibc variants.</p>
+ * {@code $PREFIX/glibc/.bootstrap_version}. No-op for non-glibc variants.</p>
+ *
+ * <p>Forced clean invalidation: when an install is needed and a stale sysroot
+ * exists (missing/invalid stamp or version mismatch), the whole
+ * {@code $PREFIX/glibc} tree is deleted and recreated before fresh
+ * extraction, so on-device apt/dpkg state can never linger across releases.</p>
  */
 final class HousewifeInstaller {
 
     private static final String LOG_TAG = "HousewifeInstaller";
+
+    /** Version stamp file inside {@code $PREFIX/glibc}, written on every successful setup. */
+    static final String BOOTSTRAP_VERSION_FILE_NAME = ".bootstrap_version";
 
     /** Asset file for the current ABI. Build script names it {@code glibc-bootstrap-arm64.tar.xz}. */
     static String getAssetName() {
@@ -46,9 +54,9 @@ final class HousewifeInstaller {
         return "glibc-bootstrap-arm64.tar.xz";
     }
 
-    /** Read the on-device {@code $PREFIX/glibc/.bootstrap-version} stamp, or {@code null}. */
+    /** Read the on-device {@code $PREFIX/glibc/.bootstrap_version} stamp, or {@code null}. */
     static String getInstalledVersion() {
-        File stamp = new File(TermuxConstants.TERMUX_GLIBC_PREFIX_DIR_PATH + "/.bootstrap-version");
+        File stamp = new File(TermuxConstants.TERMUX_GLIBC_PREFIX_DIR_PATH + "/" + BOOTSTRAP_VERSION_FILE_NAME);
         try {
             if (!stamp.isFile()) return null;
             byte[] buf = new byte[64];
@@ -103,6 +111,23 @@ final class HousewifeInstaller {
         String assetName = getAssetName();
         Logger.logInfo(LOG_TAG, "Installing glibc bootstrap " + TermuxConstants.TERMUX_GLIBC_BOOTSTRAP_VERSION + " from asset " + assetName + ".");
 
+        // Forced clean invalidation: a needed install means the on-device
+        // sysroot is missing, corrupt, or from an older release (including
+        // on-device apt/dpkg state). Purge it entirely before extraction so
+        // stale libraries can never shadow the fresh payload.
+        String installedVersion = getInstalledVersion();
+        File glibcDir = new File(TermuxConstants.TERMUX_GLIBC_PREFIX_DIR_PATH);
+        if (glibcDir.exists()) {
+            Logger.logWarn(LOG_TAG, "Stale or mismatched glibc bootstrap detected (installed: "
+                + (installedVersion != null ? installedVersion : "<missing or invalid>")
+                + ", expected: " + TermuxConstants.TERMUX_GLIBC_BOOTSTRAP_VERSION
+                + "). Purging old sysroot and re-installing...");
+            Error purgeError = FileUtils.deleteFile("stale glibc sysroot", glibcDir.getAbsolutePath(), true);
+            if (purgeError != null) return purgeError;
+        }
+        Error mkdirError = FileUtils.createDirectoryFile("glibc sysroot", glibcDir.getAbsolutePath());
+        if (mkdirError != null) return mkdirError;
+
         AssetManager assets = context.getAssets();
         try (InputStream assetIn = assets.open(assetName)) {
             Error error = extractTarXz(assetIn, TermuxConstants.TERMUX_PREFIX_DIR_PATH);
@@ -113,7 +138,7 @@ final class HousewifeInstaller {
 
         // Ensure the stamp matches even if an older tarball lacked it.
         try {
-            File stamp = new File(TermuxConstants.TERMUX_GLIBC_PREFIX_DIR_PATH + "/.bootstrap-version");
+            File stamp = new File(TermuxConstants.TERMUX_GLIBC_PREFIX_DIR_PATH + "/" + BOOTSTRAP_VERSION_FILE_NAME);
             if (!stamp.isFile()) {
                 Error error = FileUtils.createParentDirectoryFile("glibc bootstrap stamp parent", stamp.getAbsolutePath());
                 if (error != null) return error;

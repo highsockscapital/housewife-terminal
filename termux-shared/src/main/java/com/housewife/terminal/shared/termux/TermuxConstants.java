@@ -666,7 +666,7 @@ public final class TermuxConstants {
 
     /**
      * glibc fork: bootstrap version stamp. MUST equal {@code toolchain/glibc-bootstrap.version}
-     * (stamped into {@code $PREFIX/glibc/.bootstrap-version} by
+     * (stamped into {@code $PREFIX/glibc/.bootstrap_version} by
      * {@code scripts/build-glibc-bootstrap.sh}). Bump both for a new bootstrap release.
      * {@code HousewifeInstaller} compares this against the on-device stamp for
      * idempotent first-start installs and upgrades.
