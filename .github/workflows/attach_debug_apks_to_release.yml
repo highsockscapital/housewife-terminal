@@ -5,10 +5,8 @@ name: Attach Debug APKs To Release
 # DELETES the release + tag on any failure, which would destroy Housewife
 # releases. Housewife APKs ship via `housewife-build.yml` artifacts and are
 # attached to releases manually. Kept for reference only.
-# on:
-#   release:
-#     types:
-#       - published
+on:
+  workflow_dispatch:
 
 jobs:
   attach-apks:

@@ -33,7 +33,9 @@ jobs:
         run: |
           NDK_VERSION="$(grep -m1 '^ndkVersion=' gradle.properties | cut -d= -f2)"
           echo "Installing NDK $NDK_VERSION"
-          sdkmanager "ndk;$NDK_VERSION"
+          SDKMANAGER="$(command -v sdkmanager || echo "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager")"
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          "$SDKMANAGER" "ndk;$NDK_VERSION"
 
       - name: Build debug APKs
         run: ./gradlew assembleDebug
