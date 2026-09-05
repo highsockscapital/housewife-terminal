@@ -664,6 +664,15 @@ public final class TermuxConstants {
     /** glibc fork: GNU dynamic loader path inside $PREFIX/glibc (aarch64). x86_64 uses ld-linux-x86-64.so.2, resolved at runtime by grun. */
     public static final String TERMUX_GLIBC_LD_LINUX_AARCH64_PATH = TERMUX_GLIBC_LIB_PREFIX_DIR_PATH + "/ld-linux-aarch64.so.1";
 
+    /**
+     * glibc fork: bootstrap version stamp. MUST equal {@code toolchain/glibc-bootstrap.version}
+     * (stamped into {@code $PREFIX/glibc/.bootstrap-version} by
+     * {@code scripts/build-glibc-bootstrap.sh}). Bump both for a new bootstrap release.
+     * {@code GlibcBootstrapInstaller} compares this against the on-device stamp for
+     * idempotent first-start installs and upgrades.
+     */
+    public static final String TERMUX_GLIBC_BOOTSTRAP_VERSION = "2026.02";
+
 
 
     /** Termux app usr-staging directory path */

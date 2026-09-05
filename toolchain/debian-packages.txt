@@ -1,0 +1,22 @@
+# Core GNU userland set for glibc-bootstrap-arm64.tar.xz (Phase 3).
+#
+# One package name per line; blank lines and lines starting with '#' are
+# ignored. Exact pins allowed as "name=version".
+#
+# These are resolved transitively (Depends + Pre-Depends only, no Recommends)
+# against the Debian archive index by scripts/fetch-debian-packages.sh, then
+# extracted, relocated under $PREFIX/glibc, and ELF-patched at build time by
+# scripts/patch-elf.sh. Nothing runs patchelf on-device.
+#
+# glibc itself is NOT listed here: it is built from source in
+# toolchain/Dockerfile so the loader reports the on-device $PREFIX path.
+bash
+coreutils
+grep
+sed
+gawk
+findutils
+tar
+gzip
+xz-utils
+diffutils

@@ -106,6 +106,44 @@ final class TermuxInstaller {
         if (FileUtils.directoryFileExists(TERMUX_PREFIX_DIR_PATH, true)) {
             if (TermuxFileUtils.isTermuxPrefixDirectoryEmpty()) {
                 Logger.logInfo(LOG_TAG, "The termux prefix directory \"" + TERMUX_PREFIX_DIR_PATH + "\" exists but is empty or only contains specific unimportant files.");
+            } else if (GlibcBootstrapInstaller.isInstallNeeded()) {
+                // glibc fork Phase 3: Bionic prefix is present but $PREFIX/glibc is
+                // missing or stale (version bump). Install/upgrade it in the
+                // background, then continue. No staging wipe: extraction merges
+                // glibc/... + bin/grun into the live $PREFIX.
+                Logger.logInfo(LOG_TAG, "Glibc bootstrap upgrade needed. Installing in background.");
+                final ProgressDialog upgradeProgress = ProgressDialog.show(activity, null, activity.getString(R.string.bootstrap_installer_body), true, false);
+                new Thread() {
+                    @Override
+                    public void run() {
+                        try {
+                            Error error = GlibcBootstrapInstaller.installIfNeeded(activity);
+                            if (error != null) {
+                                if (isMissingGlibcAssetError(error)) {
+                                    Logger.logError(LOG_TAG, "Glibc bootstrap asset missing, continuing with Bionic prefix only:\n" + Error.getErrorMarkdownString(error));
+                                    TermuxShellEnvironment.writeEnvironmentToFile(activity);
+                                    activity.runOnUiThread(whenDone);
+                                } else {
+                                    showBootstrapErrorDialog(activity, whenDone, Error.getErrorMarkdownString(error));
+                                }
+                                return;
+                            }
+                            TermuxShellEnvironment.writeEnvironmentToFile(activity);
+                            activity.runOnUiThread(whenDone);
+                        } catch (final Exception e) {
+                            showBootstrapErrorDialog(activity, whenDone, Logger.getStackTracesMarkdownString(null, Logger.getStackTracesStringArray(e)));
+                        } finally {
+                            activity.runOnUiThread(() -> {
+                                try {
+                                    upgradeProgress.dismiss();
+                                } catch (RuntimeException e) {
+                                    // Activity already dismissed - ignore.
+                                }
+                            });
+                        }
+                    }
+                }.start();
+                return;
             } else {
                 whenDone.run();
                 return;
@@ -217,6 +255,22 @@ final class TermuxInstaller {
                     }
 
                     Logger.logInfo(LOG_TAG, "Bootstrap packages installed successfully.");
+
+                    // glibc fork Phase 3: extract glibc-bootstrap-<arch>.tar.xz
+                    // ($PREFIX/glibc + $PREFIX/bin/grun) right after the minimal
+                    // Bionic prefix lands, before the env file is written so the
+                    // glibc PATH/GCONV_PATH entries are live on first shell.
+                    if (com.termux.shared.termux.TermuxBootstrap.isAppPackageVariantGlibcAndroid15()) {
+                        Error glibcError = GlibcBootstrapInstaller.installIfNeeded(activity);
+                        if (glibcError != null) {
+                            if (isMissingGlibcAssetError(glibcError)) {
+                                Logger.logError(LOG_TAG, "Glibc bootstrap asset missing, continuing with Bionic prefix only:\n" + Error.getErrorMarkdownString(glibcError));
+                            } else {
+                                showBootstrapErrorDialog(activity, whenDone, Error.getErrorMarkdownString(glibcError));
+                                return;
+                            }
+                        }
+                    }
 
                     // Recreate env file since termux prefix was wiped earlier
                     TermuxShellEnvironment.writeEnvironmentToFile(activity);
@@ -373,6 +427,18 @@ final class TermuxInstaller {
 
     private static Error ensureDirectoryExists(File directory) {
         return FileUtils.createDirectoryFile(directory.getAbsolutePath());
+    }
+
+    /**
+     * True when a glibc install failed only because the prebuilt
+     * {@code glibc-bootstrap-<arch>.tar.xz} asset is not packaged (dev builds
+     * without running {@code scripts/build-glibc-bootstrap.sh}). Callers
+     * downgrade this to a warning so the minimal Bionic prefix still boots.
+     */
+    private static boolean isMissingGlibcAssetError(Error error) {
+        if (error == null) return false;
+        String s = Error.getErrorMarkdownString(error);
+        return s.contains("glibc bootstrap asset") || s.contains("glibc-bootstrap-");
     }
 
     public static byte[] loadZipBytes() {

@@ -2,7 +2,7 @@
 # patch-elf.sh — rewrite ELF INTERP/RPATH for the isolated $PREFIX/glibc runtime.
 #
 # Usage:
-#   scripts/patch-elf.sh <file...> [--prefix PREFIX] [--arch aarch64|x86_64]
+#   scripts/patch-elf.sh <file...> [--prefix PREFIX] [--arch arm64|x86_64]
 #
 # Defaults:
 #   PREFIX=/data/data/com.termux/files/usr   (on-device $PREFIX)
@@ -46,16 +46,16 @@ if [ "$ARCH" = "auto" ]; then
 fi
 
 case "$ARCH" in
-    aarch64)
+    aarch64|arm64)
         TRIPLET="aarch64-linux-gnu"
         INTERP="$PREFIX/glibc/lib/ld-linux-aarch64.so.1"
         ;;
-    x86_64)
+    x86_64|amd64)
         TRIPLET="x86_64-linux-gnu"
         INTERP="$PREFIX/glibc/lib/ld-linux-x86-64.so.2"
         ;;
     *)
-        echo "patch-elf.sh: unsupported --arch=$ARCH (want aarch64|x86_64)" >&2
+        echo "patch-elf.sh: unsupported --arch=$ARCH (want arm64/aarch64|x86_64/amd64)" >&2
         exit 1
         ;;
 esac

@@ -2,29 +2,45 @@
 # build-glibc-bootstrap.sh — assemble glibc-bootstrap-<arch>.tar.xz assets.
 #
 # Usage:
-#   scripts/build-glibc-bootstrap.sh [--arch aarch64|x86_64] [--prefix PREFIX]
-#                                    [--out DIR] [--glibc-tree DIR]
+#   scripts/build-glibc-bootstrap.sh [--arch arm64|x86_64] [--prefix PREFIX]
+#       [--out DIR] [--glibc-tree DIR] [--debian-staging DIR]
+#       [--bootstrap-version VER]
 #
-# Inputs:
-#   --glibc-tree DIR   unpatched $PREFIX/glibc tree (from toolchain Docker /out).
-#                      Default: build/glibc-<arch>/usr/glibc staged by CI.
-#   Third-party aarch64-linux-gnu binaries dropped into
-#   assets/staging/<arch>/glibc/bin are auto-patched with patch-elf.sh.
+# Inputs (merged in this order):
+#   --glibc-tree DIR      unpatched $PREFIX/glibc tree (toolchain Docker /out).
+#   --debian-staging DIR  glibc staging tree from scripts/fetch-debian-packages.sh
+#                         (--out of that script). Debian userland binaries land here.
+#   assets/staging/<arch>/glibc  optional repo-local overlay, also patched.
 #
-# Outputs (consumed by the app on first start, Phase 3 installer):
-#   app/src/main/assets/glibc-bootstrap-<arch>.tar.xz
-#     ./glibc/...            GNU runtime (ld-linux, libc.so.6, gconv, binaries)
+# ELF patching (build time only, never on-device):
+#   Every ELF file under the merged staging glibc/{bin,lib} is rewritten with
+#   scripts/patch-elf.sh:
+#     INTERP: $PREFIX/glibc/lib/ld-linux-aarch64.so.1 (arm64)
+#             $PREFIX/glibc/lib/ld-linux-x86-64.so.2  (x86_64)
+#     RPATH:  $PREFIX/glibc/lib:$PREFIX/glibc/lib/<triplet>
+#
+# Outputs (bundled in the APK, extracted on first start by GlibcBootstrapInstaller):
+#   app/src/main/assets/glibc-bootstrap-arm64.tar.xz   (also: -x86_64)
+#     ./glibc/...            GNU runtime (ld-linux, libc.so.6, gconv, binaries,
+#                            .bootstrap-version stamp, debian-manifest.txt)
 #     ./bin/grun             Bionic host runner (cross-checked with grun.c)
-#     ./bin/bash             minimal host shell stub (until glibc bash lands)
+#
+# Versioning: --bootstrap-version (default: content of
+# toolchain/glibc-bootstrap.version) is stamped into glibc/.bootstrap-version
+# and MUST equal TermuxConstants.TERMUX_GLIBC_BOOTSTRAP_VERSION, which the
+# installer compares against $PREFIX/glibc/.bootstrap-version. Bump both for a
+# new bootstrap release.
 #
 # The Bionic bootstrap zips (bootstrap-<arch>.zip in app/src/main/cpp/) stay
 # tiny on purpose: only bash/patchelf/grun. Everything else ships here.
 set -eu
 
-ARCH="aarch64"
+ARCH="arm64"
 PREFIX="/data/data/com.termux/files/usr"
 OUT="app/src/main/assets"
 GLIBC_TREE=""
+DEBIAN_STAGING=""
+BOOTSTRAP_VERSION=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -36,40 +52,70 @@ while [ $# -gt 0 ]; do
         --out) OUT="$2"; shift 2 ;;
         --glibc-tree=*) GLIBC_TREE="${1#--glibc-tree=}"; shift ;;
         --glibc-tree) GLIBC_TREE="$2"; shift 2 ;;
+        --debian-staging=*) DEBIAN_STAGING="${1#--debian-staging=}"; shift ;;
+        --debian-staging) DEBIAN_STAGING="$2"; shift 2 ;;
+        --bootstrap-version=*) BOOTSTRAP_VERSION="${1#--bootstrap-version=}"; shift ;;
+        --bootstrap-version) BOOTSTRAP_VERSION="$2"; shift 2 ;;
         --help|-h) sed -n '2,30p' "$0"; exit 0 ;;
-        *) echo "unknown arg: $1" >&2; exit 1 ;;
+        *) echo "build-glibc-bootstrap.sh: unknown arg: $1" >&2; exit 1 ;;
     esac
 done
 
+# normalize arch labels: aarch64/arm64 -> arm64 asset; x86_64/amd64 -> x86_64
 case "$ARCH" in
-    aarch64|x86_64) ;;
-    *) echo "unsupported --arch=$ARCH" >&2; exit 1 ;;
+    aarch64|arm64) ARCH="arm64"; TRIPLET="aarch64-linux-gnu" ;;
+    x86_64|amd64) ARCH="x86_64"; TRIPLET="x86_64-linux-gnu" ;;
+    *) echo "build-glibc-bootstrap.sh: unsupported --arch=$ARCH" >&2; exit 1 ;;
 esac
+
+if [ -z "$BOOTSTRAP_VERSION" ]; then
+    if [ -f "toolchain/glibc-bootstrap.version" ]; then
+        BOOTSTRAP_VERSION="$(tr -d ' \t\r\n' < toolchain/glibc-bootstrap.version)"
+    else
+        BOOTSTRAP_VERSION="1"
+    fi
+fi
+if [ -z "$BOOTSTRAP_VERSION" ]; then
+    echo "build-glibc-bootstrap.sh: empty bootstrap version" >&2; exit 1
+fi
 
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT INT TERM
 
-echo "staging $ARCH bootstrap in $STAGE"
+echo "staging $ARCH bootstrap $BOOTSTRAP_VERSION in $STAGE"
 mkdir -p "$STAGE/glibc" "$STAGE/bin" "$OUT"
 
 if [ -n "$GLIBC_TREE" ]; then
     cp -a "$GLIBC_TREE/." "$STAGE/glibc/"
+elif [ -d "assets/staging/$ARCH/glibc" ]; then
+    cp -a "assets/staging/$ARCH/glibc/." "$STAGE/glibc/"
 else
     echo "note: no --glibc-tree given; packing repo staging area only." >&2
-    if [ -d "assets/staging/$ARCH/glibc" ]; then
-        cp -a "assets/staging/$ARCH/glibc/." "$STAGE/glibc/"
-    fi
 fi
 
-# Auto-patch third-party binaries staged for inclusion.
+if [ -n "$DEBIAN_STAGING" ]; then
+    cp -a "$DEBIAN_STAGING/." "$STAGE/glibc/"
+fi
+
+# Repo-local overlay (also patched below).
 if [ -d "assets/staging/$ARCH/glibc/bin" ]; then
-    # shellcheck disable=SC2044
-    for bin in assets/staging/"$ARCH"/glibc/bin/*; do
-        [ -f "$bin" ] || continue
-        PATCHELF="${PATCHELF:-patchelf}" \
-            sh scripts/patch-elf.sh "$bin" --prefix="$PREFIX" --arch="$ARCH" || exit 1
-    done
     cp -a "assets/staging/$ARCH/glibc/bin/." "$STAGE/glibc/bin/" 2>/dev/null || true
+fi
+
+# Build-time ELF patch: rewrite every ELF under glibc/bin and glibc/lib.
+if [ -d "$STAGE/glibc/bin" ] || [ -d "$STAGE/glibc/lib" ]; then
+    elf_list="$(mktemp)"
+    trap 'rm -rf "$STAGE" "$elf_list"' EXIT INT TERM
+    for d in "$STAGE/glibc/bin" "$STAGE/glibc/lib"; do
+        [ -d "$d" ] || continue
+        find "$d" -type f -print >> "$elf_list"
+    done
+    if [ -s "$elf_list" ]; then
+        PATCHELF="${PATCHELF:-patchelf}" \
+            xargs -a "$elf_list" sh scripts/patch-elf.sh --prefix="$PREFIX" --arch="$ARCH" || exit 1
+    fi
+    rm -f "$elf_list"
+    trap 'rm -rf "$STAGE"' EXIT INT TERM
 fi
 
 # Host runner: prefer the ndk-built grun, fall back to a cross-compiled copy.
@@ -80,7 +126,21 @@ else
     echo "warning: build/grun-$ARCH/grun missing; bootstrap will lack grun until ndk build runs." >&2
 fi
 
+# Version stamp + manifest live inside the tarball; the installer compares the
+# stamp against TERMUX_GLIBC_BOOTSTRAP_VERSION for idempotent upgrades.
+printf '%s\n' "$BOOTSTRAP_VERSION" > "$STAGE/glibc/.bootstrap-version"
+if [ ! -f "$STAGE/glibc/debian-manifest.txt" ]; then
+    printf '# no Debian payload staged (glibc-tree/overlay only)\n' > "$STAGE/glibc/debian-manifest.txt"
+fi
+
+if [ ! -f "$STAGE/glibc/lib/ld-linux-aarch64.so.1" ] && [ ! -f "$STAGE/glibc/lib/ld-linux-x86-64.so.2" ]; then
+    echo "warning: no ld-linux loader in staging glibc/lib (Docker glibc tree missing?)" >&2
+fi
+if [ ! -d "$STAGE/glibc/bin" ] || [ -z "$(ls -A "$STAGE/glibc/bin" 2>/dev/null)" ]; then
+    echo "build-glibc-bootstrap.sh: refusing to pack empty glibc/bin" >&2; exit 1
+fi
+
 ARCHIVE="$OUT/glibc-bootstrap-$ARCH.tar.xz"
 tar -cJf "$ARCHIVE" -C "$STAGE" glibc bin
-echo "wrote $ARCHIVE"
+echo "wrote $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
 xz -l "$ARCHIVE" || true
