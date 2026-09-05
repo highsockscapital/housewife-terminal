@@ -671,7 +671,7 @@ public final class TermuxConstants {
      * {@code GlibcBootstrapInstaller} compares this against the on-device stamp for
      * idempotent first-start installs and upgrades.
      */
-    public static final String TERMUX_GLIBC_BOOTSTRAP_VERSION = "2026.03";
+    public static final String TERMUX_GLIBC_BOOTSTRAP_VERSION = "2026.04";
 
 
 

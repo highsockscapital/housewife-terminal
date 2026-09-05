@@ -30,6 +30,10 @@
 #                                          maintainer scripts do not fail.
 #   glibc/etc/apt/sources.list             Debian bookworm arm64/amd64 mirror
 #                                          for on-device apt.
+# Phase 5.2 (also generated here):
+#   glibc/bin/disable-ppk                  prints Phantom Process Killer
+#                                          background-execution guidance plus
+#                                          copy-paste ADB commands.
 #
 # Outputs (bundled in the APK, extracted on first start by GlibcBootstrapInstaller):
 #   app/src/main/assets/glibc-bootstrap-arm64.tar.xz   (also: -x86_64)
@@ -139,6 +143,52 @@ for util in chown chgrp dpkg-statoverride; do
     chmod 0755 "$STAGE/glibc/bin/$util"
 done
 printf '%s\n' "deb [arch=$DEBARCH] http://deb.debian.org/debian/ bookworm main" > "$STAGE/glibc/etc/apt/sources.list"
+
+# Phase 5.2: Phantom Process Killer helper. Prints background-execution
+# guidance and copy-paste ADB commands (ADB runs on a host PC, not on-device).
+cat > "$STAGE/glibc/bin/disable-ppk" <<'EOF'
+#!/bin/sh
+# disable-ppk — guide for heavy multi-threaded background work under
+# Android 12+ Phantom Process Killer (PPK) limits.
+#
+# The app already runs its terminal service in the foreground
+# (FOREGROUND_SERVICE_DATA_SYNC) and asks for the battery-optimizations
+# exemption, which covers normal use. If the system still kills large
+# background trees (signal 9, "[Process completed]" without exiting),
+# raise the PPK limits from a host PC over ADB:
+cat <<'INSTRUCTIONS'
+
+Housewife Terminal keeps sessions alive with a dataSync foreground service,
+a partial wake lock, and the "ignore battery optimizations" exemption
+(Settings > Apps > Housewife Terminal > Battery > Unrestricted).
+
+If long builds still die in the background, Android's Phantom Process
+Killer is capping child processes (default 32 per app). From a host PC
+with ADB (USB debugging or wireless debugging enabled on the phone):
+
+  # 1. Keep device_config changes across reboots during testing
+  adb shell device_config set_sync_disabled_for_tests persistent
+
+  # 2. Raise the phantom-process ceiling (INT_MAX = effectively off)
+  adb shell device_config put activity_manager_native_boot max_phantom_processes 2147483647
+
+  # 3. Belt and braces: disable phantom monitoring (persists across reboots)
+  adb shell settings put global settings_enable_monitor_phantom_procs false
+
+  # Verify:
+  adb shell device_config get activity_manager_native_boot max_phantom_processes
+
+Notes:
+- Step 2 resets on every reboot; re-run it (or keep a host-side script).
+- Some vendors (notably Samsung) add their own killers; also disable
+  per-app "battery optimization" and any "auto-optimize / sleep apps"
+  vendor feature for Housewife Terminal.
+- To revert:
+  adb shell device_config delete activity_manager_native_boot max_phantom_processes
+  adb shell settings delete global settings_enable_monitor_phantom_procs
+INSTRUCTIONS
+EOF
+chmod 0755 "$STAGE/glibc/bin/disable-ppk"
 
 # Build-time ELF patch: rewrite every ELF under glibc/bin and glibc/lib.
 if [ -d "$STAGE/glibc/bin" ] || [ -d "$STAGE/glibc/lib" ]; then

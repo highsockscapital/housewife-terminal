@@ -218,6 +218,11 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
             return;
         }
 
+        // Prompt to disable battery optimizations so long-running glibc tasks
+        // survive Doze/App Standby (mirrors the TermuxService wake-lock setup).
+        if (!PermissionUtils.checkIfBatteryOptimizationsDisabled(this))
+            PermissionUtils.requestDisableBatteryOptimizations(this);
+
         setMargins();
 
         mTermuxActivityRootView = findViewById(R.id.activity_termux_root_view);

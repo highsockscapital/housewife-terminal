@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/prctl.h>
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
@@ -76,6 +77,13 @@ static int create_subprocess(JNIEnv* env,
 
         close(ptm);
         setsid();
+
+        /* Housewife: shield long-running glibc tasks from Android's process
+           reaping. The shell (and grun sessions spawned through here) becomes
+           a child subreaper so orphaned grandchildren reparent to it instead
+           of init, and the new session keeps the cascade alive on app pause.
+           Best effort: failure must not abort the spawn. */
+        prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0);
 
         int pts = open(devname, O_RDWR);
         if (pts < 0) exit(-1);

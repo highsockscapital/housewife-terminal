@@ -39,6 +39,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/prctl.h>
 #include <sys/utsname.h>
 #include <unistd.h>
 
@@ -145,6 +146,13 @@ int main(int argc, char *argv[]) {
     /* glibc DNS on Android: the Docker toolchain patches glibc to consult
        ANDROID_DNS_MODE / net.dns properties; default to the patched mode. */
     if (!getenv("ANDROID_DNS_MODE")) setenv("ANDROID_DNS_MODE", "getprop", 0);
+
+    /* 4b. Housewife: mark this process a child subreaper so glibc tasks
+       it execs keep their orphaned grandchildren under Android's Phantom
+       Process Killer pressure. The flag survives execve(). Deliberately no
+       setsid() here: grun runs under the PTY controlling terminal set up by
+       termux.c, and a new session would detach job control. Best effort. */
+    prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0);
 
     /* 5. Resolve target program. */
     int arg_start = 1;

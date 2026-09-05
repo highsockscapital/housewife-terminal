@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.content.res.Resources;
 import android.net.wifi.WifiManager;
 import android.os.Binder;
@@ -17,6 +18,7 @@ import android.os.PowerManager;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.app.ServiceCompat;
 
 import com.termux.R;
 import com.termux.app.event.SystemEventReceiver;
@@ -200,10 +202,11 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
         return false;
     }
 
-    /** Make service run in foreground mode. */
+    /** Make service run in foreground mode (dataSync type for Android 14+ enforcement). */
     private void runStartForeground() {
         setupNotificationChannel();
-        startForeground(TermuxConstants.TERMUX_APP_NOTIFICATION_ID, buildNotification());
+        ServiceCompat.startForeground(this, TermuxConstants.TERMUX_APP_NOTIFICATION_ID,
+            buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
     }
 
     /** Make service leave foreground mode. */
