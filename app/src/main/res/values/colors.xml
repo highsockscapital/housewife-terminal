@@ -1,3 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Housewife Terminal flat 2D chat palette (zero elevation everywhere). -->
+    <color name="housewife_window_background">#F6F3E7</color>
+    <color name="housewife_input_background">#FFE8CF</color>
+    <color name="housewife_surface_variant">#F5F5E6</color>
+    <color name="housewife_assistant_background">#FFFFFF</color>
+    <color name="housewife_text_primary">#161610</color>
+    <color name="housewife_text_secondary">#5C5C55</color>
+    <color name="housewife_stroke_border">#161610</color>
+    <color name="housewife_stroke_border_light">#E0E0D6</color>
+    <color name="housewife_primary_accent">#FF9E43</color>
+    <color name="housewife_on_primary_accent">#161610</color>
 </resources>
