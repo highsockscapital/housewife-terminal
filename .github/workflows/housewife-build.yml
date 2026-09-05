@@ -19,6 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TERMUX_PACKAGE_VARIANT: ${{ inputs.package_variant || 'glibc-android-15' }}
+      # Minimal Bionic host prefix (bash/patchelf/grun carriers) embedded via
+      # .incbin at native build time. Full termux-packages bootstrap; the
+      # glibc userland ships separately in app/src/main/assets/.
+      BIONIC_BOOTSTRAP_VERSION: '2026.02.12-r1%2Bapt.android-7'
+      BIONIC_BOOTSTRAP_AARCH64_SHA256: 'ea2aeba8819e517db711f8c32369e89e7c52cee73e07930ff91185e1ab93f4f3'
+      BIONIC_BOOTSTRAP_X86_64_SHA256: 'b7fd0f2e3a4de534be3144f9f91acc768630fc463eaf134ab2e64c545e834f7a'
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
