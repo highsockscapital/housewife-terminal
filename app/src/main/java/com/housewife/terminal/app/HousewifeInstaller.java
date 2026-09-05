@@ -3,11 +3,15 @@ package com.housewife.terminal.app;
 import android.content.Context;
 import android.content.res.AssetManager;
 import android.os.Build;
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.system.Os;
 
 import com.housewife.terminal.shared.errors.Error;
 import com.housewife.terminal.shared.file.FileUtils;
 import com.housewife.terminal.shared.logger.Logger;
+import com.housewife.terminal.shared.notification.NotificationUtils;
 import com.housewife.terminal.shared.termux.TermuxBootstrap;
 import com.housewife.terminal.shared.termux.TermuxConstants;
 
@@ -128,11 +132,16 @@ final class HousewifeInstaller {
         Error mkdirError = FileUtils.createDirectoryFile("glibc sysroot", glibcDir.getAbsolutePath());
         if (mkdirError != null) return mkdirError;
 
+        // Surface the purge in the UI: on-device APT state is wiped with the
+        // old sysroot, so the user must know packages will be re-initialized.
+        showSysrootUpgradeNotification(context);
+
         AssetManager assets = context.getAssets();
         try (InputStream assetIn = assets.open(assetName)) {
             Error error = extractTarXz(assetIn, TermuxConstants.TERMUX_PREFIX_DIR_PATH);
-            if (error != null) return error;
+            if (error != null) { cancelSysrootUpgradeNotification(context); return error; }
         } catch (Exception e) {
+            cancelSysrootUpgradeNotification(context);
             return new Error("Failed to open glibc bootstrap asset \"" + assetName + "\". Build it with scripts/fetch-debian-packages.sh + scripts/build-glibc-bootstrap.sh.", e);
         }
 
@@ -141,12 +150,13 @@ final class HousewifeInstaller {
             File stamp = new File(TermuxConstants.TERMUX_GLIBC_PREFIX_DIR_PATH + "/" + BOOTSTRAP_VERSION_FILE_NAME);
             if (!stamp.isFile()) {
                 Error error = FileUtils.createParentDirectoryFile("glibc bootstrap stamp parent", stamp.getAbsolutePath());
-                if (error != null) return error;
+                if (error != null) { cancelSysrootUpgradeNotification(context); return error; }
                 try (FileOutputStream out = new FileOutputStream(stamp)) {
                     out.write((TermuxConstants.TERMUX_GLIBC_BOOTSTRAP_VERSION + "\n").getBytes(StandardCharsets.UTF_8));
                 }
             }
         } catch (Exception e) {
+            cancelSysrootUpgradeNotification(context);
             return new Error("Failed to write glibc bootstrap version stamp.", e);
         }
 
@@ -155,11 +165,91 @@ final class HousewifeInstaller {
             File grun = new File(TermuxConstants.TERMUX_GRUN_BIN_PATH);
             if (grun.isFile()) Os.chmod(grun.getAbsolutePath(), 0700);
         } catch (Exception e) {
+            cancelSysrootUpgradeNotification(context);
             return new Error("Failed to chmod grun.", e);
         }
 
+        cancelSysrootUpgradeNotification(context);
+        maybeShowPackageRestoreNotification(context);
+
         Logger.logInfo(LOG_TAG, "Glibc bootstrap installed successfully.");
         return null;
+    }
+
+    /**
+     * Show an ongoing notification while a stale sysroot is purged and
+     * re-installed, so the user knows on-device APT packages are being
+     * re-initialized. No-op when notifications cannot be posted (e.g. the
+     * runtime permission was denied); the install itself is unaffected.
+     */
+    static void showSysrootUpgradeNotification(Context context) {
+        try {
+            NotificationUtils.setupNotificationChannel(context,
+                TermuxConstants.HOUSEWIFE_SYSROOT_NOTIFICATION_CHANNEL_ID,
+                TermuxConstants.HOUSEWIFE_SYSROOT_NOTIFICATION_CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_DEFAULT);
+            PendingIntent contentIntent = PendingIntent.getActivity(context,
+                TermuxConstants.HOUSEWIFE_SYSROOT_UPGRADE_NOTIFICATION_ID,
+                TermuxActivity.newInstance(context), PendingIntent.FLAG_IMMUTABLE);
+            Notification.Builder builder = NotificationUtils.geNotificationBuilder(context,
+                TermuxConstants.HOUSEWIFE_SYSROOT_NOTIFICATION_CHANNEL_ID,
+                Notification.PRIORITY_HIGH,
+                "Upgrading core glibc sysroot",
+                "User packages will be re-initialized.",
+                "Upgrading core glibc sysroot... User packages will be re-initialized.\n\n"
+                    + "On-device APT state lives inside $PREFIX/glibc and is wiped with the old "
+                    + "sysroot. Preserve it with pkg-backup before upgrading.",
+                contentIntent, null, NotificationUtils.NOTIFICATION_MODE_SILENT);
+            if (builder == null) return;
+            builder.setOngoing(true);
+            NotificationManager manager = NotificationUtils.getNotificationManager(context);
+            if (manager != null)
+                manager.notify(TermuxConstants.HOUSEWIFE_SYSROOT_UPGRADE_NOTIFICATION_ID, builder.build());
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Failed to show sysroot upgrade notification: " + e.getMessage());
+        }
+    }
+
+    /** Dismiss the sysroot upgrade notification, if shown. Never fails the install. */
+    static void cancelSysrootUpgradeNotification(Context context) {
+        try {
+            NotificationManager manager = NotificationUtils.getNotificationManager(context);
+            if (manager != null)
+                manager.cancel(TermuxConstants.HOUSEWIFE_SYSROOT_UPGRADE_NOTIFICATION_ID);
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Failed to cancel sysroot upgrade notification: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Post-install hook: if a {@code user_packages.list} backup (see
+     * {@code $PREFIX/glibc/bin/pkg-backup}) survived outside the purged
+     * sysroot, notify with the one-shot restore command. Tapping opens the
+     * terminal so the command can be run immediately.
+     */
+    static void maybeShowPackageRestoreNotification(Context context) {
+        File list = new File(TermuxConstants.HOUSEWIFE_USER_PACKAGES_FILE_PATH);
+        if (!list.isFile()) return;
+        String restoreCommand = "xargs -a " + TermuxConstants.HOUSEWIFE_USER_PACKAGES_FILE_PATH + " apt-get install -y";
+        Logger.logInfo(LOG_TAG, "User package list found, suggest restore: " + restoreCommand);
+        try {
+            PendingIntent contentIntent = PendingIntent.getActivity(context,
+                TermuxConstants.HOUSEWIFE_SYSROOT_RESTORE_NOTIFICATION_ID,
+                TermuxActivity.newInstance(context), PendingIntent.FLAG_IMMUTABLE);
+            Notification.Builder builder = NotificationUtils.geNotificationBuilder(context,
+                TermuxConstants.HOUSEWIFE_SYSROOT_NOTIFICATION_CHANNEL_ID,
+                Notification.PRIORITY_HIGH,
+                "Sysroot upgraded — restore packages",
+                "Tap to open the terminal, then run the restore command.",
+                "Sysroot upgraded. Re-install your packages with:\n\n" + restoreCommand,
+                contentIntent, null, NotificationUtils.NOTIFICATION_MODE_SILENT);
+            if (builder == null) return;
+            NotificationManager manager = NotificationUtils.getNotificationManager(context);
+            if (manager != null)
+                manager.notify(TermuxConstants.HOUSEWIFE_SYSROOT_RESTORE_NOTIFICATION_ID, builder.build());
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Failed to show package restore notification: " + e.getMessage());
+        }
     }
 
     /** Stream-extract a {@code tar.xz} whose top-level entries are {@code glibc/...} and {@code bin/...}. */

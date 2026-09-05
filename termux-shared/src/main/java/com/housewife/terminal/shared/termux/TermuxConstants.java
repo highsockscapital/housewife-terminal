@@ -671,7 +671,7 @@ public final class TermuxConstants {
      * {@code HousewifeInstaller} compares this against the on-device stamp for
      * idempotent first-start installs and upgrades.
      */
-    public static final String TERMUX_GLIBC_BOOTSTRAP_VERSION = "2026.04";
+    public static final String TERMUX_GLIBC_BOOTSTRAP_VERSION = "2026.05";
 
 
 
@@ -893,6 +893,17 @@ public final class TermuxConstants {
     public static final String TERMUX_CRASH_REPORTS_NOTIFICATION_CHANNEL_ID = "termux_crash_reports_notification_channel";
     /** Termux app notification channel name used for crash reports */
     public static final String TERMUX_CRASH_REPORTS_NOTIFICATION_CHANNEL_NAME = TermuxConstants.TERMUX_APP_NAME + " Crash Reports";
+
+    /** Housewife sysroot upgrade notification channel id */
+    public static final String HOUSEWIFE_SYSROOT_NOTIFICATION_CHANNEL_ID = "housewife_sysroot_channel";
+    /** Housewife sysroot upgrade notification channel name */
+    public static final String HOUSEWIFE_SYSROOT_NOTIFICATION_CHANNEL_NAME = "Sysroot";
+    /** Housewife notification id for an in-progress glibc sysroot purge/re-install */
+    public static final int HOUSEWIFE_SYSROOT_UPGRADE_NOTIFICATION_ID = 1340;
+    /** Housewife notification id for a pending user-package restore after a sysroot upgrade */
+    public static final int HOUSEWIFE_SYSROOT_RESTORE_NOTIFICATION_ID = 1341;
+    /** Explicitly-installed package list, kept outside /glibc so it survives sysroot purges */
+    public static final String HOUSEWIFE_USER_PACKAGES_FILE_PATH = TERMUX_FILES_DIR_PATH + "/user_packages.list";
 
 
     /** Termux app notification channel id used by {@link TERMUX_FLOAT_APP.TERMUX_FLOAT_SERVICE} */

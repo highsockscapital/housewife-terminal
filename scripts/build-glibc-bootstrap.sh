@@ -34,6 +34,10 @@
 #   glibc/bin/disable-ppk                  prints Phantom Process Killer
 #                                          background-execution guidance plus
 #                                          copy-paste ADB commands.
+# Sysroot preservation (also generated here):
+#   glibc/bin/pkg-backup                   saves explicitly-installed package
+#                                          names outside /glibc so the list
+#                                          survives sysroot purges.
 #
 # Outputs (bundled in the APK, extracted on first start by GlibcBootstrapInstaller):
 #   app/src/main/assets/glibc-bootstrap-arm64.tar.xz   (also: -x86_64)
@@ -189,6 +193,29 @@ Notes:
 INSTRUCTIONS
 EOF
 chmod 0755 "$STAGE/glibc/bin/disable-ppk"
+
+# Sysroot preservation: snapshot the explicitly-installed package set outside
+# /glibc ($PREFIX/user_packages.list survives sysroot purges). The
+# HousewifeInstaller restore hook suggests re-installing from it after
+# upgrades: xargs -a <list> apt-get install -y
+USER_LIST_DIR="${PREFIX%/usr}"
+cat > "$STAGE/glibc/bin/pkg-backup" <<EOF
+#!/bin/sh
+# pkg-backup — save explicitly-installed package names for bootstrap upgrades.
+# List lands outside /glibc so sysroot purges never touch it.
+set -eu
+LIST_DIR="\${PREFIX:-$USER_LIST_DIR}"
+LIST_DIR="\${LIST_DIR%/usr}"
+LIST="\$LIST_DIR/user_packages.list"
+if ! command -v dpkg >/dev/null 2>&1; then
+    echo "pkg-backup: dpkg not installed in \$PREFIX/glibc" >&2
+    exit 1
+fi
+mkdir -p "\$LIST_DIR"
+dpkg --get-selections | grep -v deinstall | cut -f1 > "\$LIST"
+echo "pkg-backup: saved \$(wc -l < "\$LIST" | tr -d ' ') packages to \$LIST"
+EOF
+chmod 0755 "$STAGE/glibc/bin/pkg-backup"
 
 # Build-time ELF patch: rewrite every ELF under glibc/bin and glibc/lib.
 if [ -d "$STAGE/glibc/bin" ] || [ -d "$STAGE/glibc/lib" ]; then
