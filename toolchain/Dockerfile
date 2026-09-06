@@ -55,6 +55,7 @@ RUN export LDFLAGS="-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384" \
         --host="$TARGET" \
         --prefix="${PREFIX}/glibc" \
         --enable-kernel=5.10 \
+        --disable-werror \
         --with-headers="/usr/${TARGET}/include" \
         libc_cv_slibdir="${PREFIX}/glibc/lib" \
     && make -j"$(nproc)" \
