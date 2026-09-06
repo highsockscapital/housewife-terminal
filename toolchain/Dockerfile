@@ -27,6 +27,7 @@ ARG ARCH=aarch64
 ARG PREFIX=/data/data/com.housewife.terminal/files/usr
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     build-essential gawk bison python3 texinfo gettext \
     gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
     gcc-x86-64-linux-gnu g++-x86-64-linux-gnu \
