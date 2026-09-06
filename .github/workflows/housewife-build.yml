@@ -74,7 +74,7 @@ jobs:
           (cd "$APK_DIR_PATH" && sha256sum termux-app_*.apk > sha256sums.txt)
 
       - name: Upload APKs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: housewife-apks-${{ env.TERMUX_PACKAGE_VARIANT }}
           path: |
