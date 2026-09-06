@@ -8,8 +8,10 @@
 # extracted, relocated under $PREFIX/glibc, and ELF-patched at build time by
 # scripts/patch-elf.sh. Nothing runs patchelf on-device.
 #
-# glibc itself is NOT listed here: it is built from source in
-# toolchain/Dockerfile so the loader reports the on-device $PREFIX path.
+# libc6 (+libcrypt1/libgcc-s1 via deps) ships the proven stock Debian
+# ld-linux/libc: a from-source cross build segfaulted instantly on-device.
+# apt/dpkg seed the on-device package manager (configs + dummy admin utils
+# are generated at pack time; maintainer scripts run on-device, never here).
 bash
 coreutils
 grep
@@ -20,3 +22,5 @@ tar
 gzip
 xz-utils
 diffutils
+apt
+dpkg

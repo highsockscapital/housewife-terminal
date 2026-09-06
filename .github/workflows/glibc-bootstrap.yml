@@ -1,7 +1,7 @@
 name: glibc Bootstrap
 
 # Builds the real glibc-bootstrap-<arch>.tar.xz userland payload with the
-# Docker cross toolchain (glibc from source + Debian userland + Phase 4.1/5.2
+# Stock Debian userland + generated configs (no source builds) + Phase 4.1/5.2
 # generated configs). The tarball is published as a workflow artifact;
 # `housewife-build.yml` pulls the latest successful one into
 # app/src/main/assets/ before assembling the APK. Tarballs never enter git.
@@ -30,7 +30,10 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v6
 
-      - name: Install Android NDK
+      - name: Install pack tools
+        run: sudo apt-get update && sudo apt-get install -y patchelf
+
+      - name: Cross-compile grun host runner
         run: |
           NDK_VERSION="$(grep -m1 '^ndkVersion=' gradle.properties | cut -d= -f2)"
           SDKMANAGER="$(command -v sdkmanager || echo "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager")"

@@ -22,8 +22,10 @@
 #   (e.g. https://deb.debian.org/debian-ports --suite sid) without changes.
 # - Only Depends + Pre-Depends are resolved transitively, never Recommends or
 #   Suggests, to keep the bootstrap minimal.
-# - glibc itself must NOT be in the package list: it is built from source in
-#   toolchain/Dockerfile so the loader reports the on-device $PREFIX path.
+# - glibc itself (libc6, libcrypt1, libgcc-s1) comes straight from the Debian
+#   archive like everything else: stock Debian ld-linux is proven working on
+#   Android, while a from-source cross build produced an instantly-segfaulting
+#   loader. See toolchain history for the retired Docker build.
 #
 # Requires: curl, xz, dpkg-deb, awk. Writes OUT/debian-manifest.txt
 # (name version arch per resolved package) for reproducible builds.
@@ -210,9 +212,8 @@ while [ -s "$QUEUE" ]; do
     printf '%s' "$rawdeps" | split_top_commas | while IFS= read -r tok; do
         dep="$(normalize_dep "$tok")"
         [ -z "$dep" ] && continue
-        # skip essential-virtual and libc (built from source in Docker)
+        # libc package family resolves from the archive like everything else
         case "$dep" in
-            libc6|libcrypt1) continue ;;
             # virtual packages: resolve to their canonical provider
             awk) dep="gawk" ;;
         esac
@@ -270,6 +271,16 @@ if [ -d "$ROOT/usr/lib" ]; then
     (cd "$ROOT/usr/lib" && ls -A) | while IFS= read -r entry; do
         if [ "$entry" != "$TRIPLET" ]; then
             cp -a "$ROOT/usr/lib/$entry" "$OUT/lib/"
+        fi
+    done
+fi
+# The dynamic loader must ALSO live at $PREFIX/glibc/lib/<loader>: patched
+# binaries point INTERP there (the triplet-qualified copy stays for the
+# loader's own default search).
+if [ -d "$OUT/lib/$TRIPLET" ]; then
+    for loader in "$OUT/lib/$TRIPLET"/ld-linux-*.so.1; do
+        if [ -f "$loader" ] && [ ! -e "$OUT/lib/$(basename "$loader")" ]; then
+            cp -a "$loader" "$OUT/lib/"
         fi
     done
 fi

@@ -23,7 +23,7 @@
 # Relocatable objects (*.o, shipped by glibc) are skipped outright: patchelf
 # only handles linked ET_EXEC/ET_DYN files.
 #
-# Requires: patchelf (built by toolchain/Dockerfile -> /out/patchelf).
+# Requires: patchelf (apt install patchelf) on PATH or via $PATCHELF.
 set -eu
 
 PREFIX="/data/data/com.housewife.terminal/files/usr"
@@ -75,7 +75,7 @@ if [ -z "$FILES" ]; then
 fi
 
 command -v "$PATCHELF" >/dev/null 2>&1 || {
-    echo "patch-elf.sh: patchelf not found ($PATCHELF). Build it via toolchain/Dockerfile." >&2
+    echo "patch-elf.sh: patchelf not found ($PATCHELF). Install it (apt install patchelf)." >&2
     exit 1
 }
 

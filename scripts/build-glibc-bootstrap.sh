@@ -7,7 +7,7 @@
 #       [--bootstrap-version VER]
 #
 # Inputs (merged in this order):
-#   --glibc-tree DIR      unpatched $PREFIX/glibc tree (toolchain Docker /out).
+#   --glibc-tree DIR      optional extra unpatched $PREFIX/glibc tree merged under staging.
 #   --debian-staging DIR  glibc staging tree from scripts/fetch-debian-packages.sh
 #                         (--out of that script). Debian userland binaries land here.
 #   assets/staging/<arch>/glibc  optional repo-local overlay, also patched.
@@ -249,7 +249,7 @@ if [ ! -f "$STAGE/glibc/debian-manifest.txt" ]; then
 fi
 
 if [ ! -f "$STAGE/glibc/lib/ld-linux-aarch64.so.1" ] && [ ! -f "$STAGE/glibc/lib/ld-linux-x86-64.so.2" ]; then
-    echo "warning: no ld-linux loader in staging glibc/lib (Docker glibc tree missing?)" >&2
+    echo "warning: no ld-linux loader in staging glibc/lib (libc6 payload missing?)" >&2
 fi
 if [ ! -d "$STAGE/glibc/bin" ] || [ -z "$(ls -A "$STAGE/glibc/bin" 2>/dev/null)" ]; then
     echo "build-glibc-bootstrap.sh: refusing to pack empty glibc/bin" >&2; exit 1

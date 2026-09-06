@@ -1,33 +1,32 @@
 #!/bin/sh
 # toolchain/build-bootstrap.sh — end-to-end glibc bootstrap pipeline.
 #
-# Orchestrates the full Docker-based cross-compilation and asset packaging
-# flow that produces the APK-embedded GNU userland:
+# Assembles the APK-embedded GNU userland from the Debian archive (stock
+# Debian ld-linux/libc: proven working on Android, unlike a from-source
+# cross build whose loader segfaulted instantly on-device):
 #
-#   1. docker build toolchain/      -> cross toolchain image (glibc sources
-#      configured --host=<triplet> --prefix=<PREFIX>/glibc, 16 KB LDFLAGS).
-#   2. docker create/cp             -> OUT/glibc/ tree + OUT/patchelf out of
-#      the image; then docker run (grun.c + OUT mounted) executes the baked
-#      /usr/local/bin/build-grun.sh -> OUT/grun (validation that app NDK and
-#      Docker builds never drift).
-#   3. scripts/fetch-debian-packages.sh -> build/glibc-staging/<arch>/glibc.
-#   4. scripts/build-glibc-bootstrap.sh (PATCHELF pointed at the
-#      Docker-built static patchelf)
-#      -> app/src/main/assets/glibc-bootstrap-<arch>.tar.xz.
+#   1. scripts/fetch-debian-packages.sh -> build/glibc-staging/<arch>/glibc
+#      (full userland incl. libc6/libcrypt1/libgcc-s1, apt, dpkg; the
+#      dynamic loader is also placed at <staging>/lib/ld-linux-*.so.1).
+#   2. scripts/build-glibc-bootstrap.sh (PATCHELF from the environment)
+#      -> app/src/main/assets/glibc-bootstrap-<arch>.tar.xz (ELF INTERP/RPATH
+#      rewrites, dpkg hook, dummy admin utils, apt sources, pkg-backup,
+#      disable-ppk).
+#
+# The Bionic host runner ($PREFIX/bin/grun) is NOT built here: CI compiles it
+# with the NDK clang into build/grun-<arch>/grun (see glibc-bootstrap.yml),
+# which the pack step picks up automatically. Local runs without it pack a
+# grun-less tarball (installer falls back to Bionic bash).
 #
 # Usage:
 #   toolchain/build-bootstrap.sh [--arch arm64|x86_64] [--prefix PREFIX]
-#       [--suite SUITE] [--out-dir DIR] [--image NAME]
-#       [--glibc-version VER] [--skip-docker] [--skip-debian]
+#       [--suite SUITE] [--skip-debian]
 #
 # Defaults:
 #   --arch arm64 --prefix /data/data/com.housewife.terminal/files/usr --suite bookworm
-#   --out-dir build/toolchain --image housewife-glibc-toolchain
-#   --glibc-version 2.41 (must match toolchain/Dockerfile GLIBC_VERSION)
 #
-# --skip-docker reuses a previous OUT (OUT/glibc/ tree, OUT/patchelf,
-# OUT/grun must exist). --skip-debian reuses build/glibc-staging/<arch>.
-# Requires: docker (unless --skip-docker), curl, xz, dpkg-deb, awk.
+# --skip-debian reuses build/glibc-staging/<arch>.
+# Requires: curl, xz, dpkg-deb, awk, patchelf (for the pack step).
 set -eu
 
 cd "$(dirname "$0")/.."
@@ -35,10 +34,6 @@ cd "$(dirname "$0")/.."
 ARCH="arm64"
 PREFIX="/data/data/com.housewife.terminal/files/usr"
 SUITE="bookworm"
-OUT_DIR="build/toolchain"
-IMAGE="housewife-glibc-toolchain"
-GLIBC_VERSION="2.41"
-SKIP_DOCKER=0
 SKIP_DEBIAN=0
 
 while [ $# -gt 0 ]; do
@@ -49,64 +44,32 @@ while [ $# -gt 0 ]; do
         --prefix) PREFIX="$2"; shift 2 ;;
         --suite=*) SUITE="${1#--suite=}"; shift ;;
         --suite) SUITE="$2"; shift 2 ;;
-        --out-dir=*) OUT_DIR="${1#--out-dir=}"; shift ;;
-        --out-dir) OUT_DIR="$2"; shift 2 ;;
-        --image=*) IMAGE="${1#--image=}"; shift ;;
-        --image) IMAGE="$2"; shift 2 ;;
-        --glibc-version=*) GLIBC_VERSION="${1#--glibc-version=}"; shift ;;
-        --glibc-version) GLIBC_VERSION="$2"; shift 2 ;;
-        --skip-docker) SKIP_DOCKER=1; shift ;;
         --skip-debian) SKIP_DEBIAN=1; shift ;;
-        --help|-h) sed -n '2,30p' "$0"; exit 0 ;;
+        --help|-h) sed -n '2,28p' "$0"; exit 0 ;;
         *) echo "build-bootstrap.sh: unknown arg: $1" >&2; exit 1 ;;
     esac
 done
 
 case "$ARCH" in
     aarch64|arm64)
-        ARCH="arm64"; DOCKER_ARCH="aarch64"; TRIPLET="aarch64-linux-gnu"
+        ARCH="arm64"; TRIPLET="aarch64-linux-gnu"
         STAGING="build/glibc-staging/arm64/glibc"
         CACHE_DIR="build/deb-cache/arm64"
         ;;
     x86_64|amd64)
-        ARCH="x86_64"; DOCKER_ARCH="x86_64"; TRIPLET="x86_64-linux-gnu"
+        ARCH="x86_64"; TRIPLET="x86_64-linux-gnu"
         STAGING="build/glibc-staging/x86_64/glibc"
         CACHE_DIR="build/deb-cache/x86_64"
         ;;
     *) echo "build-bootstrap.sh: unsupported --arch=$ARCH" >&2; exit 1 ;;
 esac
 
-mkdir -p "$OUT_DIR"
-
-if [ "$SKIP_DOCKER" -eq 0 ]; then
-    command -v docker >/dev/null 2>&1 || {
-        echo "build-bootstrap.sh: docker not found (or pass --skip-docker)" >&2; exit 1; }
-    [ -f "app/src/main/cpp/grun.c" ] || {
-        echo "build-bootstrap.sh: app/src/main/cpp/grun.c missing for grun validation build" >&2; exit 1; }
-    echo "building Docker toolchain image $IMAGE (glibc $GLIBC_VERSION, $TRIPLET)..."
-    docker build -t "$IMAGE" \
-        --build-arg "ARCH=$DOCKER_ARCH" \
-        --build-arg "PREFIX=$PREFIX" \
-        --build-arg "GLIBC_VERSION=$GLIBC_VERSION" \
-        toolchain/
-    echo "running toolchain container (out: $OUT_DIR)..."
-    # Extract the built tree + patchelf from the image (bind mounts only
-    # apply to `docker run`, so image outputs are copied out explicitly).
-    CTR="$(docker create "$IMAGE")"
-    docker cp "$CTR:/out/." "$OUT_DIR/"
-    docker rm "$CTR" >/dev/null
-    # Compile grun inside the container with the app source mounted.
-    docker run --rm \
-        -v "$PWD/$OUT_DIR:/out" \
-        -v "$PWD/app/src/main/cpp/grun.c:/src/app-src-grun.c:ro" \
-        "$IMAGE" sh /usr/local/bin/build-grun.sh
-else
-    for f in glibc patchelf grun; do
-        [ -e "$OUT_DIR/$f" ] || {
-            echo "build-bootstrap.sh: --skip-docker but $OUT_DIR/$f missing" >&2; exit 1; }
-    done
-    echo "reusing Docker outputs in $OUT_DIR (--skip-docker)"
-fi
+for tool in curl xz dpkg-deb awk; do
+    command -v "$tool" >/dev/null 2>&1 || {
+        echo "build-bootstrap.sh: required tool missing: $tool" >&2; exit 1; }
+done
+command -v patchelf >/dev/null 2>&1 || {
+    echo "build-bootstrap.sh: patchelf not found (apt install patchelf)" >&2; exit 1; }
 
 if [ "$SKIP_DEBIAN" -eq 0 ]; then
     echo "fetching Debian userland (suite=$SUITE, $TRIPLET)..."
@@ -119,18 +82,9 @@ else
     echo "reusing Debian staging in $STAGING (--skip-debian)"
 fi
 
-# The Docker glibc tree mirrors the absolute prefix below the install root:
-# <OUT>/glibc/<PREFIX>/glibc (install_root + --prefix). Pass it straight to
-# the pack step — no intermediate tarball.
-GLIBC_TREE="$OUT_DIR/glibc$PREFIX/glibc"
-[ -d "$GLIBC_TREE" ] || {
-    echo "build-bootstrap.sh: Docker tree has no $PREFIX/glibc" >&2; exit 1; }
-
 echo "packing glibc-bootstrap-$ARCH.tar.xz..."
-PATCHELF="$PWD/$OUT_DIR/patchelf" \
-    sh scripts/build-glibc-bootstrap.sh --arch "$ARCH" \
-        --prefix "$PREFIX" \
-        --glibc-tree "$GLIBC_TREE" \
-        --debian-staging "$STAGING"
+sh scripts/build-glibc-bootstrap.sh --arch "$ARCH" \
+    --prefix "$PREFIX" \
+    --debian-staging "$STAGING"
 
 echo "done: app/src/main/assets/glibc-bootstrap-$ARCH.tar.xz"
