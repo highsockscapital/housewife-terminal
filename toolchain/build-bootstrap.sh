@@ -6,8 +6,10 @@
 #
 #   1. docker build toolchain/      -> cross toolchain image (glibc sources
 #      configured --host=<triplet> --prefix=<PREFIX>/glibc, 16 KB LDFLAGS).
-#   2. docker run (OUT:/out, grun.c mounted)
-#      -> OUT/glibc-<docker-arch>.tar, OUT/patchelf (static), OUT/grun.
+#   2. docker create/cp             -> OUT/glibc/ tree + OUT/patchelf out of
+#      the image; then docker run (grun.c + OUT mounted) executes the baked
+#      /usr/local/bin/build-grun.sh -> OUT/grun (validation that app NDK and
+#      Docker builds never drift).
 #   3. scripts/fetch-debian-packages.sh -> build/glibc-staging/<arch>/glibc.
 #   4. scripts/build-glibc-bootstrap.sh (PATCHELF pointed at the
 #      Docker-built static patchelf)
@@ -23,7 +25,7 @@
 #   --out-dir build/toolchain --image housewife-glibc-toolchain
 #   --glibc-version 2.41 (must match toolchain/Dockerfile GLIBC_VERSION)
 #
-# --skip-docker reuses a previous OUT (OUT/glibc-<arch>.tar, OUT/patchelf,
+# --skip-docker reuses a previous OUT (OUT/glibc/ tree, OUT/patchelf,
 # OUT/grun must exist). --skip-debian reuses build/glibc-staging/<arch>.
 # Requires: docker (unless --skip-docker), curl, xz, dpkg-deb, awk.
 set -eu
@@ -88,15 +90,26 @@ if [ "$SKIP_DOCKER" -eq 0 ]; then
         --build-arg "GLIBC_VERSION=$GLIBC_VERSION" \
         toolchain/
     echo "running toolchain container (out: $OUT_DIR)..."
+    # Extract the built tree + patchelf from the image (bind mounts only
+    # apply to `docker run`, so image outputs are copied out explicitly).
+    CTR="$(docker create "$IMAGE")"
+    docker cp "$CTR:/out/." "$OUT_DIR/"
+    docker rm "$CTR" >/dev/null
+    # Compile grun inside the container with the app source mounted.
     docker run --rm \
         -v "$PWD/$OUT_DIR:/out" \
         -v "$PWD/app/src/main/cpp/grun.c:/src/app-src-grun.c:ro" \
-        "$IMAGE"
+        "$IMAGE" sh /usr/local/bin/build-grun.sh
+    # Pack the extracted tree for the --glibc-tree consumer below.
+    tar -cf "$OUT_DIR/glibc-$DOCKER_ARCH.tar" -C "$OUT_DIR" glibc
 else
-    for f in "glibc-$DOCKER_ARCH.tar" patchelf grun; do
-        [ -f "$OUT_DIR/$f" ] || {
+    for f in glibc patchelf grun; do
+        [ -e "$OUT_DIR/$f" ] || {
             echo "build-bootstrap.sh: --skip-docker but $OUT_DIR/$f missing" >&2; exit 1; }
     done
+    if [ ! -f "$OUT_DIR/glibc-$DOCKER_ARCH.tar" ]; then
+        tar -cf "$OUT_DIR/glibc-$DOCKER_ARCH.tar" -C "$OUT_DIR" glibc
+    fi
     echo "reusing Docker outputs in $OUT_DIR (--skip-docker)"
 fi
 

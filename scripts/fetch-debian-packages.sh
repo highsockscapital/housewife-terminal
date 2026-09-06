@@ -213,6 +213,8 @@ while [ -s "$QUEUE" ]; do
         # skip essential-virtual and libc (built from source in Docker)
         case "$dep" in
             libc6|libcrypt1) continue ;;
+            # virtual packages: resolve to their canonical provider
+            awk) dep="gawk" ;;
         esac
         if ! grep -qxF "$dep" "$SEEN" 2>/dev/null; then
             printf '%s\n' "$dep" >> "$SEEN"

@@ -6,9 +6,14 @@
 #   docker run --rm -v "$PWD/build:/out" glibc-termux-toolchain
 #
 # Output (consumed by scripts/build-glibc-bootstrap.sh):
-#   /out/glibc-aarch64.tar        # $PREFIX/glibc tree (unpatched paths)
-#   /out/patchelf                 # static patchelf host binary
-#   /out/grun                     # Bionic-compatible grun ($PREFIX/bin/grun)
+#   /out/glibc/                 # $PREFIX/glibc tree (unpatched paths)
+#   /out/patchelf               # static patchelf host binary
+#   /usr/local/bin/build-grun.sh# grun builder (run at container RUN time with
+#                               # app source mounted; see toolchain/build-bootstrap.sh)
+#
+# grun itself is NOT compiled at image build time: the app source is mounted
+# only at container run time. /usr/local/bin/build-grun.sh captures the exact
+# Phase 8.5 flags (mirroring app/src/main/cpp/Android.mk) for that step.
 #
 # Notes:
 # - 64-bit only: arm64-v8a (+ x86_64 via --arch=x86_64 build-arg).
@@ -71,12 +76,10 @@ RUN git clone --depth 1 https://github.com/NixOS/patchelf.git . \
     && make -j"$(nproc)" \
     && cp src/patchelf /out/patchelf
 
-# grun host copy compiled against the NDK-style Bionic headers is produced by
-# the app ndk-build; this target validates the same source with the cross
-# compiler so bootstrap packaging never drifts from app/src/main/cpp/grun.c.
-# Phase 8.5 flags mirror app/src/main/cpp/Android.mk (glibc itself stays at
-# upstream -O2: LTO/-O3 are unsupported in its build).
-RUN TARGET="$(cat /build/target-triplet)" \
-    && "${TARGET}-gcc" -std=c11 -Wall -Wextra -Werror -O3 -flto -fomit-frame-pointer -funroll-loops \
-        -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 -Wl,-O1 -Wl,--gc-sections \
-        /src/app-src-grun.c -o /out/grun || echo "mount app source at /src/app-src-grun.c to build grun"
+# grun builder script for container run time (image build cannot mount the
+# app source). The orchestrator mounts app/src/main/cpp/grun.c at
+# /src/app-src-grun.c and OUT at /out, then runs this script.
+RUN printf '%s\n' '#!/bin/sh' 'set -eu' \
+    'TARGET="$(cat /build/target-triplet)"' \
+    '"${TARGET}-gcc" -std=c11 -Wall -Wextra -Werror -O3 -flto -fomit-frame-pointer -funroll-loops -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 -Wl,-O1 -Wl,--gc-sections /src/app-src-grun.c -o /out/grun' \
+    > /usr/local/bin/build-grun.sh && chmod 0755 /usr/local/bin/build-grun.sh
