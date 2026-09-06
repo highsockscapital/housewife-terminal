@@ -13,12 +13,15 @@
 #   INTERP (--set-interpreter, executables only):
 #     $PREFIX/glibc/lib/ld-linux-aarch64.so.1   (aarch64)
 #     $PREFIX/glibc/lib/ld-linux-x86-64.so.2    (x86_64)
-#   RPATH (--set-rpath, executables and shared libraries):
+# RPATH (--set-rpath, executables and shared libraries):
 #     $PREFIX/glibc/lib:$PREFIX/glibc/lib/<triplet>
 #
 # Shared libraries carry no .interp section, so --set-interpreter is not
 # applicable to them: INTERP failure falls through to the RPATH rewrite
 # instead of aborting the file.
+#
+# Relocatable objects (*.o, shipped by glibc) are skipped outright: patchelf
+# only handles linked ET_EXEC/ET_DYN files.
 #
 # Requires: patchelf (built by toolchain/Dockerfile -> /out/patchelf).
 set -eu
@@ -83,6 +86,11 @@ for f in $FILES; do
         echo "patch-elf.sh: skip missing $f" >&2
         continue
     fi
+    # Relocatable objects are not linked images: patchelf reports
+    # "wrong ELF type" for them, so skip before touching anything.
+    case "$f" in
+        *.o) echo "patch-elf.sh: skip relocatable object $f"; continue ;;
+    esac
     # Only touch ELF files.
     if ! head -c 4 "$f" | grep -q "$(printf '\177ELF')"; then
         echo "patch-elf.sh: skip non-ELF $f"
