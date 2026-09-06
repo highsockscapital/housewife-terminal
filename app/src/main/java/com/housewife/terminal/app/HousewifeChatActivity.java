@@ -116,6 +116,13 @@ public final class HousewifeChatActivity extends AppCompatActivity {
         List<String> envList = new ArrayList<>(environment.size());
         for (Map.Entry<String, String> entry : environment.entrySet())
             envList.add(entry.getKey() + "=" + entry.getValue());
+        if (!new File(shellPath).getAbsolutePath()
+                .equals(TermuxConstants.TERMUX_GRUN_BIN_PATH)) {
+            // Bionic fallback: host binaries resolve their libs via
+            // DT_RUNPATH only when it matches this package; belt and braces
+            // with an explicit library path (grun/ld-linux never need it).
+            envList.add("LD_LIBRARY_PATH=" + TermuxConstants.TERMUX_LIB_PREFIX_DIR_PATH);
+        }
         try {
             SessionManager.SessionHandle handle = sessionManager.createNewSession(
                 shellPath, home, shellArgs,

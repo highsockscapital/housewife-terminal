@@ -30,6 +30,23 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v6
 
+      - name: Install Android NDK
+        run: |
+          NDK_VERSION="$(grep -m1 '^ndkVersion=' gradle.properties | cut -d= -f2)"
+          SDKMANAGER="$(command -v sdkmanager || echo "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager")"
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          "$SDKMANAGER" "ndk;$NDK_VERSION"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - name: Cross-compile grun host runner
+        run: |
+          mkdir -p build/grun-arm64
+          "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang" \
+            -std=c11 -Wall -Wextra -Werror -O3 -flto -fomit-frame-pointer -funroll-loops \
+            -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 -Wl,-O1 -Wl,--gc-sections \
+            app/src/main/cpp/grun.c -o build/grun-arm64/grun
+          ls -l build/grun-arm64/grun
+
       - name: Run bootstrap pipeline
         run: sh toolchain/build-bootstrap.sh --arch "$ARCH" --suite "$SUITE"
 
