@@ -93,7 +93,8 @@ for f in $FILES; do
     # could be trusted, so even an RPATH-only rewrite segfaults it
     # instantly (proven: stock ld.so lives, patchelf'd ld.so dies).
     case "$f" in
-        *.o|ld-linux-*.so.1) echo "patch-elf.sh: skip unpatchable $f"; continue ;;
+        *.o|*/ld-linux-*.so.1|ld-linux-*.so.1)
+            echo "patch-elf.sh: skip unpatchable $f"; continue ;;
     esac
     # Only touch ELF files.
     if ! head -c 4 "$f" | grep -q "$(printf '\177ELF')"; then
