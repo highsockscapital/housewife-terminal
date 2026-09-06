@@ -675,7 +675,7 @@ public final class TermuxConstants {
      * match, so an unbumped content change would leave stale files (e.g. a
      * previously corrupted ld.so) on-device forever.
      */
-    public static final String TERMUX_GLIBC_BOOTSTRAP_VERSION = "2026.08";
+    public static final String TERMUX_GLIBC_BOOTSTRAP_VERSION = "2026.09";
 
 
 
