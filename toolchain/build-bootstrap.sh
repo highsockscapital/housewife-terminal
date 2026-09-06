@@ -100,16 +100,11 @@ if [ "$SKIP_DOCKER" -eq 0 ]; then
         -v "$PWD/$OUT_DIR:/out" \
         -v "$PWD/app/src/main/cpp/grun.c:/src/app-src-grun.c:ro" \
         "$IMAGE" sh /usr/local/bin/build-grun.sh
-    # Pack the extracted tree for the --glibc-tree consumer below.
-    tar -cf "$OUT_DIR/glibc-$DOCKER_ARCH.tar" -C "$OUT_DIR" glibc
 else
     for f in glibc patchelf grun; do
         [ -e "$OUT_DIR/$f" ] || {
             echo "build-bootstrap.sh: --skip-docker but $OUT_DIR/$f missing" >&2; exit 1; }
     done
-    if [ ! -f "$OUT_DIR/glibc-$DOCKER_ARCH.tar" ]; then
-        tar -cf "$OUT_DIR/glibc-$DOCKER_ARCH.tar" -C "$OUT_DIR" glibc
-    fi
     echo "reusing Docker outputs in $OUT_DIR (--skip-docker)"
 fi
 
@@ -124,15 +119,12 @@ else
     echo "reusing Debian staging in $STAGING (--skip-debian)"
 fi
 
-# The Docker glibc tree mirrors the absolute prefix:
-# <tmp>/<PREFIX>/glibc (install_root + --prefix).
-UNPACK="$(mktemp -d)"
-trap 'rm -rf "$UNPACK"' EXIT INT TERM
-echo "unpacking Docker glibc tree..."
-tar -xf "$OUT_DIR/glibc-$DOCKER_ARCH.tar" -C "$UNPACK"
-GLIBC_TREE="$UNPACK$PREFIX/glibc"
+# The Docker glibc tree mirrors the absolute prefix below the install root:
+# <OUT>/glibc/<PREFIX>/glibc (install_root + --prefix). Pass it straight to
+# the pack step — no intermediate tarball.
+GLIBC_TREE="$OUT_DIR/glibc$PREFIX/glibc"
 [ -d "$GLIBC_TREE" ] || {
-    echo "build-bootstrap.sh: unpacked tree has no $PREFIX/glibc" >&2; exit 1; }
+    echo "build-bootstrap.sh: Docker tree has no $PREFIX/glibc" >&2; exit 1; }
 
 echo "packing glibc-bootstrap-$ARCH.tar.xz..."
 PATCHELF="$PWD/$OUT_DIR/patchelf" \
