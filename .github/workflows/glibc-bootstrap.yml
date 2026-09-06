@@ -41,7 +41,7 @@ jobs:
           test -s "dist/glibc-bootstrap-$ARCH.tar.xz"
 
       - name: Upload bootstrap tarball
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: glibc-bootstrap-${{ env.ARCH }}
           path: dist/glibc-bootstrap-${{ env.ARCH }}.tar.xz
