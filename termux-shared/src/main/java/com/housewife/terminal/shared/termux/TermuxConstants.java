@@ -670,8 +670,12 @@ public final class TermuxConstants {
      * {@code scripts/build-glibc-bootstrap.sh}). Bump both for a new bootstrap release.
      * {@code HousewifeInstaller} compares this against the on-device stamp for
      * idempotent first-start installs and upgrades.
+     * POLICY: bump on ANY payload content change (new packages, pack script
+     * output, patch rules) — the installer skips extraction when stamps
+     * match, so an unbumped content change would leave stale files (e.g. a
+     * previously corrupted ld.so) on-device forever.
      */
-    public static final String TERMUX_GLIBC_BOOTSTRAP_VERSION = "2026.07";
+    public static final String TERMUX_GLIBC_BOOTSTRAP_VERSION = "2026.08";
 
 
 
