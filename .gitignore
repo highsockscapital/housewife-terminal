@@ -7,6 +7,9 @@ build/
 release/
 *.apk
 *.so
+# glibc bootstrap tarballs flow via CI artifacts, never git (100MB+ scale).
+# The tracked .gitkeep preserves the empty assets/ dir for fresh clones.
+app/src/main/assets/*.tar.xz
 .externalNativeBuild
 .cxx
 *.zip

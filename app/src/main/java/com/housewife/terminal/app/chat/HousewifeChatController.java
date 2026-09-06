@@ -107,6 +107,13 @@ public final class HousewifeChatController {
         adapter.setAutoScroll(autoScroll);
     }
 
+    /**
+     * Replace the whole terminal card (session-switch restore). Main thread only.
+     */
+    public void replaceTerminalOutput(@NonNull CharSequence text) {
+        adapter.replaceTerminalText(text);
+    }
+
     private void submitCurrentInput() {
         String command = input.getText().toString().trim();
         if (command.isEmpty()) return;

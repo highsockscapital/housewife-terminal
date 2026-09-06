@@ -1,0 +1,48 @@
+name: glibc Bootstrap
+
+# Builds the real glibc-bootstrap-<arch>.tar.xz userland payload with the
+# Docker cross toolchain (glibc from source + Debian userland + Phase 4.1/5.2
+# generated configs). The tarball is published as a workflow artifact;
+# `housewife-build.yml` pulls the latest successful one into
+# app/src/main/assets/ before assembling the APK. Tarballs never enter git.
+#
+# Heavy job (glibc from source); default timeout applies.
+on:
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: 'Target arch (arm64 only for releases)'
+        required: false
+        default: 'arm64'
+      suite:
+        description: 'Debian suite'
+        required: false
+        default: 'bookworm'
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      ARCH: ${{ inputs.arch || 'arm64' }}
+      SUITE: ${{ inputs.suite || 'bookworm' }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+
+      - name: Run bootstrap pipeline
+        run: sh toolchain/build-bootstrap.sh --arch "$ARCH" --suite "$SUITE"
+
+      - name: Stage tarball
+        run: |
+          mkdir -p dist
+          mv "app/src/main/assets/glibc-bootstrap-$ARCH.tar.xz" dist/
+          ls -lh dist/
+          test -s "dist/glibc-bootstrap-$ARCH.tar.xz"
+
+      - name: Upload bootstrap tarball
+        uses: actions/upload-artifact@v6
+        with:
+          name: glibc-bootstrap-${{ env.ARCH }}
+          path: dist/glibc-bootstrap-${{ env.ARCH }}.tar.xz
+          retention-days: 90

@@ -17,6 +17,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     env:
       TERMUX_PACKAGE_VARIANT: ${{ inputs.package_variant || 'glibc-android-15' }}
       # Minimal Bionic host prefix (bash/patchelf/grun carriers) embedded via
@@ -41,6 +44,19 @@ jobs:
           SDKMANAGER="$(command -v sdkmanager || echo "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager")"
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
           "$SDKMANAGER" "ndk;$NDK_VERSION"
+
+      - name: Fetch glibc bootstrap tarball (if published)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p app/src/main/assets
+          RUN_ID="$(gh run list --workflow glibc-bootstrap.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          if [ -n "$RUN_ID" ]; then
+            gh run download "$RUN_ID" -n glibc-bootstrap-arm64 -D app/src/main/assets/
+            ls -lh app/src/main/assets/
+          else
+            echo "No successful glibc bootstrap run yet; APK builds without bundled userland (Bionic fallback)."
+          fi
 
       - name: Build debug APKs
         run: ./gradlew assembleDebug
