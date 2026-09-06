@@ -88,8 +88,12 @@ for f in $FILES; do
     fi
     # Relocatable objects are not linked images: patchelf reports
     # "wrong ELF type" for them, so skip before touching anything.
+    # The dynamic loader itself is NEVER patched: it self-bootstraps from
+    # its own ELF headers before any library (including a rewritten self)
+    # could be trusted, so even an RPATH-only rewrite segfaults it
+    # instantly (proven: stock ld.so lives, patchelf'd ld.so dies).
     case "$f" in
-        *.o) echo "patch-elf.sh: skip relocatable object $f"; continue ;;
+        *.o|ld-linux-*.so.1) echo "patch-elf.sh: skip unpatchable $f"; continue ;;
     esac
     # Only touch ELF files.
     if ! head -c 4 "$f" | grep -q "$(printf '\177ELF')"; then
