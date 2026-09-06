@@ -36,8 +36,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /src
 
-# glibc version pinned for reproducible 16 KB page-size builds.
-ARG GLIBC_VERSION=2.40
+# glibc version pinned for reproducible 16 KB page-size builds (2.41 carries
+# the newer-GCC fallout fixes that 2.40 lacks on Ubuntu 24.04 toolchains).
+ARG GLIBC_VERSION=2.41
 RUN curl -fsSLO "https://ftp.gnu.org/gnu/glibc/glibc-${GLIBC_VERSION}.tar.xz" \
     && tar -xf "glibc-${GLIBC_VERSION}.tar.xz"
 

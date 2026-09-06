@@ -21,7 +21,7 @@
 # Defaults:
 #   --arch arm64 --prefix /data/data/com.housewife.terminal/files/usr --suite bookworm
 #   --out-dir build/toolchain --image housewife-glibc-toolchain
-#   --glibc-version 2.40 (must match toolchain/Dockerfile GLIBC_VERSION)
+#   --glibc-version 2.41 (must match toolchain/Dockerfile GLIBC_VERSION)
 #
 # --skip-docker reuses a previous OUT (OUT/glibc-<arch>.tar, OUT/patchelf,
 # OUT/grun must exist). --skip-debian reuses build/glibc-staging/<arch>.
@@ -35,7 +35,7 @@ PREFIX="/data/data/com.housewife.terminal/files/usr"
 SUITE="bookworm"
 OUT_DIR="build/toolchain"
 IMAGE="housewife-glibc-toolchain"
-GLIBC_VERSION="2.40"
+GLIBC_VERSION="2.41"
 SKIP_DOCKER=0
 SKIP_DEBIAN=0
 
