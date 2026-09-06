@@ -52,8 +52,11 @@ public abstract class UnixShellEnvironment implements IShellEnvironment {
     public static final String ENV_TMPDIR = "TMPDIR";
 
 
-    /** Names for common/supported login shell binaries. */
-    public static final String[] LOGIN_SHELL_BINARIES = new String[]{"login", "bash", "zsh", "fish", "sh"};
+    /** Names for common/supported login shell binaries.
+     * NOTE: the bootstrap `login` script is deliberately absent: it carries a
+     * hardcoded upstream `#!/data/data/com.termux/...` shebang, so exec fails
+     * under the renamed package. Sessions exec `bash` (argv[0] `-bash`) instead. */
+    public static final String[] LOGIN_SHELL_BINARIES = new String[]{"bash", "zsh", "fish", "sh"};
 
 
 
