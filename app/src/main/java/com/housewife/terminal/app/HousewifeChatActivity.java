@@ -95,11 +95,22 @@ public final class HousewifeChatActivity extends AppCompatActivity {
             createShellSession();
     }
 
-    /** Spawn a Bionic bash login session (-bash) on the PTY engine. */
+    /**
+     * Spawn a login session. Prefers {@code $PREFIX/bin/grun} (glibc loader →
+     * {@code $PREFIX/glibc/bin/bash --login} with the grun execution
+     * environment); falls back to Bionic {@code $PREFIX/bin/bash} on dev
+     * builds whose glibc asset was never bundled.
+     */
     private void createShellSession() {
         if (!bootstrapReady) return;
-        String bash = TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + "/bash";
         String home = TermuxConstants.TERMUX_HOME_DIR_PATH;
+        String shellPath = TermuxConstants.TERMUX_GRUN_BIN_PATH;
+        String[] shellArgs = new String[]{"grun"};
+        if (!new File(shellPath).canExecute()) {
+            Logger.logWarn(LOG_TAG, "grun missing, falling back to Bionic bash (no glibc runtime)");
+            shellPath = TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + "/bash";
+            shellArgs = new String[]{"-bash"};
+        }
         HashMap<String, String> environment =
             new TermuxShellEnvironment().getEnvironment(this, false);
         List<String> envList = new ArrayList<>(environment.size());
@@ -107,7 +118,7 @@ public final class HousewifeChatActivity extends AppCompatActivity {
             envList.add(entry.getKey() + "=" + entry.getValue());
         try {
             SessionManager.SessionHandle handle = sessionManager.createNewSession(
-                bash, home, new String[]{"-bash"},
+                shellPath, home, shellArgs,
                 envList.toArray(new String[0]), TRANSCRIPT_ROWS, sessionClient);
             handleBySession.put(handle.terminalSession, handle);
             // No TerminalView is attached in the chat UI, so start the

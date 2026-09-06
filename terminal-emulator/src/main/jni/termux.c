@@ -111,6 +111,9 @@ static int create_subprocess(JNIEnv* env,
            (termux-exec is purged: it breaks ld-linux), and exports
            GLIBC_PREFIX/GCONV_PATH/LD_LIBRARY_PATH for grun. Do NOT
            reintroduce LD_PRELOAD or prepend Bionic paths here. */
+        /* Belt and braces: a poisoned envp must never revive the
+           termux-exec hook — ld-linux would misresolve every path. */
+        unsetenv("LD_PRELOAD");
 
         if (chdir(cwd) != 0) {
             char* error_message;
