@@ -110,6 +110,9 @@ public final class HousewifeChatActivity extends AppCompatActivity {
                 bash, home, new String[]{"-bash"},
                 envList.toArray(new String[0]), TRANSCRIPT_ROWS, sessionClient);
             handleBySession.put(handle.terminalSession, handle);
+            // No TerminalView is attached in the chat UI, so start the
+            // emulator + PTY fork explicitly (80x24 fallback size).
+            handle.terminalSession.updateSize(80, 24, 0, 0);
         } catch (Exception e) {
             Logger.logStackTraceWithMessage(LOG_TAG, "Failed to create shell session", e);
             chatController.postAssistantMessage("Could not start shell: " + e.getMessage());
