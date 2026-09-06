@@ -48,10 +48,12 @@ RUN curl -fsSLO "https://ftp.gnu.org/gnu/glibc/glibc-${GLIBC_VERSION}.tar.xz" \
     && tar -xf "glibc-${GLIBC_VERSION}.tar.xz"
 
 WORKDIR /build/glibc
-# Explicit 16 KB linker flags for every glibc configure probe and link step
-# (Android 15+ refuses LOAD segments aligned wider than the kernel page size).
-RUN export LDFLAGS="-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384" \
-    && case "$ARCH" in \
+# NOTE: no custom LDFLAGS here. An earlier revision exported
+# -Wl,-z,max-page-size/common-page-size=16384 for the whole glibc link and
+# produced an ld.so that segfaults instantly on-device (stock Debian ld.so
+# runs fine in the same context). Ship upstream layout until a flagged
+# rebuild is proven byte-healthy. (grun/patchelf keep their own flags.)
+RUN case "$ARCH" in \
       aarch64) TARGET="aarch64-linux-gnu" ;; \
       x86_64)  TARGET="x86_64-linux-gnu" ;; \
       *) echo "unsupported ARCH=$ARCH (want aarch64|x86_64)" >&2; exit 1 ;; \
