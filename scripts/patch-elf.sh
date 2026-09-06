@@ -96,6 +96,20 @@ for f in $FILES; do
         echo "patch-elf.sh: skip non-ELF $f"
         continue
     fi
+    # Only linked images (ET_EXEC/ET_DYN) are patchable. readelf gates out
+    # anything else deterministically (archives that smell like ELF,
+    # truncated/corrupt files, exotic types) instead of relying on patchelf
+    # to fail noisily halfway through a batch.
+    if command -v readelf >/dev/null 2>&1; then
+        elf_type="$(readelf -h "$f" 2>/dev/null | sed -n 's/^  Type:[[:space:]]*\([A-Z]*\).*/\1/p')"
+        case "$elf_type" in
+            EXEC|DYN) : ;;
+            *)
+                echo "patch-elf.sh: skip unpatchable ELF type '${elf_type:-unreadable}' $f"
+                continue
+                ;;
+        esac
+    fi
     echo "patch-elf.sh: $f"
     echo "  INTERP -> $INTERP"
     echo "  RPATH  -> $RPATH"
@@ -106,7 +120,13 @@ for f in $FILES; do
     else
         echo "  INTERP not applicable for $f (shared library?), RPATH only"
     fi
-    "$PATCHELF" --set-rpath "$RPATH" "$f" || { echo "  RPATH failed for $f" >&2; fail=1; continue; }
+    "$PATCHELF" --set-rpath "$RPATH" "$f" || {
+        echo "  RPATH failed for $f" >&2
+        if command -v readelf >/dev/null 2>&1; then
+            readelf -h "$f" 2>&1 | head -n 8 >&2 || true
+        fi
+        fail=1; continue
+    }
     # 16 KB page-size guard: flag binaries whose segments exceed the limit.
     if command -v readelf >/dev/null 2>&1; then
         if readelf -lW "$f" 2>/dev/null | grep -q "LOAD.*0x[0-9a-f]*$" ; then
